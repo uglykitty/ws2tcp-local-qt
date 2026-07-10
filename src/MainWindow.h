@@ -62,6 +62,7 @@ class MainWindow final : public QMainWindow {
   QSpinBox *bufferSizeSpin_ = nullptr;
   QSpinBox *refreshIntervalSpin_ = nullptr;
   QComboBox *proxyModeCombo_ = nullptr;
+  QComboBox *closeBehaviorCombo_ = nullptr;
   QCheckBox *verifyCertificateCheck_ = nullptr;
   QPushButton *startButton_ = nullptr;
   QPushButton *stopButton_ = nullptr;
@@ -80,6 +81,7 @@ class MainWindow final : public QMainWindow {
   QAction *quitAction_ = nullptr;
   bool wasRunning_ = false;
   bool allowClose_ = false;
+  QString sessionCloseBehavior_;
   QString runtimeStatus_;
 };
 

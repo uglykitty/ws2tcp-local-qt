@@ -13,6 +13,7 @@
 #include <QSpinBox>
 #include <QSystemTrayIcon>
 #include <QTimer>
+#include <QToolButton>
 
 #include "ws2tcp_local_ffi.h"
 
@@ -54,7 +55,9 @@ class MainWindow final : public QMainWindow {
   Ws2TcpHandle *handle_ = nullptr;
   QLineEdit *listenEdit_ = nullptr;
   QLineEdit *gatewayEdit_ = nullptr;
-  QLineEdit *basicAuthEdit_ = nullptr;
+  QLineEdit *usernameEdit_ = nullptr;
+  QLineEdit *passwordEdit_ = nullptr;
+  QToolButton *passwordVisibilityButton_ = nullptr;
   QLineEdit *customRulesEdit_ = nullptr;
   QSpinBox *bufferSizeSpin_ = nullptr;
   QSpinBox *refreshIntervalSpin_ = nullptr;

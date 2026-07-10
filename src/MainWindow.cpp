@@ -44,7 +44,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
   listenEdit_ = new QLineEdit("127.0.0.1:8000", this);
   gatewayEdit_ = new QLineEdit(this);
-  basicAuthEdit_ = new QLineEdit(this);
+  usernameEdit_ = new QLineEdit(this);
+  passwordEdit_ = new QLineEdit(this);
+  passwordEdit_->setEchoMode(QLineEdit::Password);
+  passwordVisibilityButton_ = new QToolButton(this);
+  passwordVisibilityButton_->setText("Show");
+  passwordVisibilityButton_->setCheckable(true);
+  passwordVisibilityButton_->setToolTip("Show password");
+
+  auto *passwordRow = new QWidget(this);
+  auto *passwordLayout = new QHBoxLayout(passwordRow);
+  passwordLayout->setContentsMargins(0, 0, 0, 0);
+  passwordLayout->addWidget(passwordEdit_);
+  passwordLayout->addWidget(passwordVisibilityButton_);
   customRulesEdit_ = new QLineEdit(this);
 
   bufferSizeSpin_ = new QSpinBox(this);
@@ -66,7 +78,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
   form->addRow("Listen", listenEdit_);
   form->addRow("Gateway", gatewayEdit_);
-  form->addRow("Basic auth", basicAuthEdit_);
+  form->addRow("Username", usernameEdit_);
+  form->addRow("Password", passwordRow);
   form->addRow("Custom rules", customRulesEdit_);
   form->addRow("Buffer size", bufferSizeSpin_);
   form->addRow("Rule refresh seconds", refreshIntervalSpin_);
@@ -99,6 +112,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   connect(stopButton_, &QPushButton::clicked, this, &MainWindow::stopProxy);
   connect(proxyModeCombo_, &QComboBox::currentTextChanged, this,
           &MainWindow::updateProxyMode);
+  connect(passwordVisibilityButton_, &QToolButton::toggled, this,
+          [this](bool visible) {
+            passwordEdit_->setEchoMode(visible ? QLineEdit::Normal
+                                               : QLineEdit::Password);
+            passwordVisibilityButton_->setText(visible ? "Hide" : "Show");
+            passwordVisibilityButton_->setToolTip(visible ? "Hide password"
+                                                          : "Show password");
+          });
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   connect(systemProxyCheck_, &QCheckBox::toggled, this,
           &MainWindow::setSystemProxyEnabled);
@@ -320,8 +341,9 @@ QByteArray MainWindow::buildConfigJson() const {
   config["proxy_mode"] = proxyModeCombo_->currentText();
   config["verify_server_certificate"] = verifyCertificateCheck_->isChecked();
 
-  if (!basicAuthEdit_->text().isEmpty()) {
-    config["basic_auth"] = basicAuthEdit_->text().trimmed();
+  const QString username = usernameEdit_->text().trimmed();
+  if (!username.isEmpty()) {
+    config["basic_auth"] = username + ":" + passwordEdit_->text();
   }
   if (!customRulesEdit_->text().isEmpty()) {
     config["custom_domain_rules"] = customRulesEdit_->text().trimmed();
@@ -412,7 +434,22 @@ void MainWindow::loadUserSettings() {
   listenEdit_->setText(
       settings.value("proxy/listen", listenEdit_->text()).toString());
   gatewayEdit_->setText(settings.value("proxy/gateway").toString());
-  basicAuthEdit_->setText(settings.value("proxy/basic_auth").toString());
+  if (settings.contains("proxy/username") ||
+      settings.contains("proxy/password")) {
+    usernameEdit_->setText(settings.value("proxy/username").toString());
+    passwordEdit_->setText(settings.value("proxy/password").toString());
+  } else {
+    // Migrate the former combined `username:password` setting. Split only on
+    // the first colon because colons are valid password characters.
+    const QString basicAuth = settings.value("proxy/basic_auth").toString();
+    const qsizetype separator = basicAuth.indexOf(':');
+    if (separator >= 0) {
+      usernameEdit_->setText(basicAuth.left(separator));
+      passwordEdit_->setText(basicAuth.mid(separator + 1));
+    } else {
+      usernameEdit_->setText(basicAuth);
+    }
+  }
   customRulesEdit_->setText(settings.value("proxy/custom_rules").toString());
   bufferSizeSpin_->setValue(
       settings.value("proxy/buffer_size", bufferSizeSpin_->value()).toInt());
@@ -444,7 +481,9 @@ void MainWindow::saveUserSettings() const {
 
   settings.setValue("proxy/listen", listenEdit_->text());
   settings.setValue("proxy/gateway", gatewayEdit_->text());
-  settings.setValue("proxy/basic_auth", basicAuthEdit_->text());
+  settings.setValue("proxy/username", usernameEdit_->text());
+  settings.setValue("proxy/password", passwordEdit_->text());
+  settings.remove("proxy/basic_auth");
   settings.setValue("proxy/custom_rules", customRulesEdit_->text());
   settings.setValue("proxy/buffer_size", bufferSizeSpin_->value());
   settings.setValue("proxy/rule_refresh_interval_secs",

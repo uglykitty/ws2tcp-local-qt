@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 project(ws2tcp-local-qt VERSION 0.1.1 LANGUAGES CXX)
 
 include(GNUInstallDirs)
+include(FetchContent)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,6 +11,27 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
+
+set(WS2TCP_LOCAL_CLI_SOURCE_DIR
+    "${CMAKE_CURRENT_LIST_DIR}/../ws2tcp-local"
+    CACHE PATH "Path to the ws2tcp-local Rust CLI crate")
+
+if(NOT EXISTS "${WS2TCP_LOCAL_CLI_SOURCE_DIR}/Cargo.toml")
+    message(FATAL_ERROR
+        "ws2tcp-local CLI was not found at ${WS2TCP_LOCAL_CLI_SOURCE_DIR}. "
+        "Set WS2TCP_LOCAL_CLI_SOURCE_DIR to its source directory.")
+endif()
+
+FetchContent_Declare(Corrosion
+    GIT_REPOSITORY https://github.com/corrosion-rs/corrosion.git
+    GIT_TAG 1499b14e4906a2890f5cee1547c8848db261753d)
+FetchContent_MakeAvailable(Corrosion)
+
+corrosion_import_crate(
+    MANIFEST_PATH "${WS2TCP_LOCAL_CLI_SOURCE_DIR}/Cargo.toml"
+    CRATES ws2tcp-local
+    CRATE_TYPES bin
+    LOCKED)
 
 option(WS2TCP_LOCAL_FFI_AUTO_BUILD
     "Build ws2tcp-local-ffi with Cargo when no prebuilt FFI library is provided"
@@ -245,6 +267,8 @@ if(TARGET ws2tcp_local_ffi_cargo_build)
     add_dependencies(ws2tcp-local-qt ws2tcp_local_ffi_cargo_build)
 endif()
 
+add_dependencies(ws2tcp-local-qt ws2tcp-local)
+
 if(WIN32)
     qt_generate_deploy_app_script(
         TARGET ws2tcp-local-qt
@@ -258,6 +282,9 @@ install(TARGETS ws2tcp-local-qt
     RUNTIME_DEPENDENCY_SET ws2tcp-local-qt-runtime-deps
     BUNDLE DESTINATION .
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
+install(PROGRAMS "$<TARGET_FILE:ws2tcp-local>"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 install(FILES data/ws2tcp-local-qt.desktop
     DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")

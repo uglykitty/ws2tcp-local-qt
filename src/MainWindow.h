@@ -2,12 +2,16 @@
 #define MAINWINDOW_H
 
 #include <QComboBox>
+#include <QAction>
+#include <QCloseEvent>
 #include <QLineEdit>
 #include <QMainWindow>
+#include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QCheckBox>
 #include <QSpinBox>
+#include <QSystemTrayIcon>
 #include <QTimer>
 
 #include "ws2tcp_local_ffi.h"
@@ -24,9 +28,17 @@ class MainWindow final : public QMainWindow {
   void stopProxy();
   void refreshStatus();
   void appendLog(QString message);
+  void toggleWindowVisibility();
+  void quitFromTray();
+  void handleTrayActivation(QSystemTrayIcon::ActivationReason reason);
+
+ protected:
+  void closeEvent(QCloseEvent *event) override;
 
  private:
   QByteArray buildConfigJson() const;
+  void setupTrayIcon();
+  void updateTrayActions();
   void loadUserSettings();
   void saveUserSettings() const;
   void appendError(const QString &prefix);
@@ -48,7 +60,14 @@ class MainWindow final : public QMainWindow {
   QPushButton *stopButton_ = nullptr;
   QPlainTextEdit *logView_ = nullptr;
   QTimer *statusTimer_ = nullptr;
+  QSystemTrayIcon *trayIcon_ = nullptr;
+  QMenu *trayMenu_ = nullptr;
+  QAction *showHideAction_ = nullptr;
+  QAction *trayStartAction_ = nullptr;
+  QAction *trayStopAction_ = nullptr;
+  QAction *quitAction_ = nullptr;
   bool wasRunning_ = false;
+  bool allowClose_ = false;
   QString runtimeStatus_;
 };
 

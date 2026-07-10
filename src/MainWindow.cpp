@@ -1,16 +1,31 @@
 #include "MainWindow.h"
 
 #include <QByteArray>
+#include <QApplication>
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMessageBox>
 #include <QMetaObject>
 #include <QSettings>
+#include <QStyle>
 #include <QStatusBar>
 #include <QVBoxLayout>
 #include <QWidget>
+
+namespace {
+
+QIcon applicationIcon() {
+  QIcon icon(":/icons/app-icon.png");
+  if (icon.isNull()) {
+    icon = QApplication::style()->standardIcon(QStyle::SP_ComputerIcon);
+  }
+  return icon;
+}
+
+}  // namespace
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   handle_ = ws2tcp_handle_new();
@@ -63,6 +78,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
   setCentralWidget(central);
   setWindowTitle("ws2tcp-local");
+  setWindowIcon(applicationIcon());
   resize(720, 520);
 
   connect(startButton_, &QPushButton::clicked, this, &MainWindow::startProxy);
@@ -87,6 +103,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   }
 
   loadUserSettings();
+  setupTrayIcon();
   refreshStatus();
 }
 
@@ -119,6 +136,7 @@ void MainWindow::startProxy() {
     appendError("Start failed");
   }
   refreshStatus();
+  updateTrayActions();
 }
 
 void MainWindow::stopProxy() {
@@ -135,6 +153,7 @@ void MainWindow::stopProxy() {
     appendError("Stop failed");
   }
   refreshStatus();
+  updateTrayActions();
 }
 
 void MainWindow::refreshStatus() {
@@ -149,6 +168,7 @@ void MainWindow::refreshStatus() {
       ws2tcp_status(handle_) == WS2TCP_STATUS_RUNNING;
   startButton_->setEnabled(!running);
   stopButton_->setEnabled(running);
+  updateTrayActions();
 
   if (wasRunning_ && !running) {
     const QString error =
@@ -169,6 +189,47 @@ void MainWindow::appendLog(QString message) {
   updateRuntimeStatusFromLog(message);
 }
 
+void MainWindow::toggleWindowVisibility() {
+  if (isVisible()) {
+    hide();
+  } else {
+    showNormal();
+    raise();
+    activateWindow();
+  }
+  updateTrayActions();
+}
+
+void MainWindow::quitFromTray() {
+  allowClose_ = true;
+  QApplication::quit();
+}
+
+void MainWindow::handleTrayActivation(
+    QSystemTrayIcon::ActivationReason reason) {
+  if (reason == QSystemTrayIcon::Trigger ||
+      reason == QSystemTrayIcon::DoubleClick) {
+    toggleWindowVisibility();
+  }
+}
+
+void MainWindow::closeEvent(QCloseEvent *event) {
+  if (allowClose_) {
+    event->accept();
+    return;
+  }
+
+  if (trayIcon_ == nullptr || !trayIcon_->isVisible()) {
+    event->accept();
+    QApplication::quit();
+    return;
+  }
+
+  hide();
+  updateTrayActions();
+  event->ignore();
+}
+
 QByteArray MainWindow::buildConfigJson() const {
   QJsonObject config;
   config["listen"] = listenEdit_->text().trimmed();
@@ -186,6 +247,60 @@ QByteArray MainWindow::buildConfigJson() const {
   }
 
   return QJsonDocument(config).toJson(QJsonDocument::Compact);
+}
+
+void MainWindow::setupTrayIcon() {
+  if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+    logView_->appendPlainText("System tray is not available");
+    return;
+  }
+
+  trayMenu_ = new QMenu(this);
+  showHideAction_ = trayMenu_->addAction("Hide window");
+  trayStartAction_ = trayMenu_->addAction("Start");
+  trayStopAction_ = trayMenu_->addAction("Stop");
+  trayMenu_->addSeparator();
+  quitAction_ = trayMenu_->addAction("Quit");
+
+  trayIcon_ = new QSystemTrayIcon(applicationIcon(), this);
+  trayIcon_->setToolTip("ws2tcp-local");
+  trayIcon_->setContextMenu(trayMenu_);
+
+  connect(showHideAction_, &QAction::triggered, this,
+          &MainWindow::toggleWindowVisibility);
+  connect(trayStartAction_, &QAction::triggered, this, &MainWindow::startProxy);
+  connect(trayStopAction_, &QAction::triggered, this, &MainWindow::stopProxy);
+  connect(quitAction_, &QAction::triggered, this, &MainWindow::quitFromTray);
+  connect(trayIcon_, &QSystemTrayIcon::activated, this,
+          &MainWindow::handleTrayActivation);
+
+  updateTrayActions();
+  trayIcon_->show();
+}
+
+void MainWindow::updateTrayActions() {
+  if (showHideAction_ != nullptr) {
+    showHideAction_->setText(isVisible() ? "Hide window" : "Show window");
+  }
+
+  if (handle_ == nullptr) {
+    if (trayStartAction_ != nullptr) {
+      trayStartAction_->setEnabled(false);
+    }
+    if (trayStopAction_ != nullptr) {
+      trayStopAction_->setEnabled(false);
+    }
+    return;
+  }
+
+  const bool running =
+      ws2tcp_status(handle_) == WS2TCP_STATUS_RUNNING;
+  if (trayStartAction_ != nullptr) {
+    trayStartAction_->setEnabled(!running);
+  }
+  if (trayStopAction_ != nullptr) {
+    trayStopAction_->setEnabled(running);
+  }
 }
 
 void MainWindow::loadUserSettings() {

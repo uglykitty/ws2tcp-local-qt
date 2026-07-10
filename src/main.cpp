@@ -6,6 +6,7 @@ int main(int argc, char *argv[]) {
   QApplication app(argc, argv);
   QCoreApplication::setOrganizationName("ws2tcp-local");
   QCoreApplication::setApplicationName("ws2tcp-local-qt");
+  QApplication::setQuitOnLastWindowClosed(false);
 
   MainWindow window;
   window.show();

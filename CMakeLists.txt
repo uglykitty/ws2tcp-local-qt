@@ -7,6 +7,7 @@ include(GNUInstallDirs)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
@@ -228,10 +229,18 @@ if(TARGET ws2tcp_local_ffi_cargo_build)
     endif()
 endif()
 
-add_executable(ws2tcp-local-qt
+set(WS2TCP_LOCAL_QT_SOURCES
     src/main.cpp
     src/MainWindow.cpp
-    src/MainWindow.h)
+    src/MainWindow.h
+    src/resources.qrc)
+
+if(WIN32)
+    list(APPEND WS2TCP_LOCAL_QT_SOURCES src/resources/app.rc)
+endif()
+
+add_executable(ws2tcp-local-qt
+    ${WS2TCP_LOCAL_QT_SOURCES})
 
 if(WIN32)
     set_target_properties(ws2tcp-local-qt PROPERTIES
@@ -257,6 +266,13 @@ install(TARGETS ws2tcp-local-qt
     RUNTIME_DEPENDENCY_SET ws2tcp-local-qt-runtime-deps
     BUNDLE DESTINATION .
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
+install(FILES data/ws2tcp-local-qt.desktop
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+
+install(FILES src/resources/app-icon.png
+    RENAME ws2tcp-local-qt.png
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps")
 
 install(IMPORTED_RUNTIME_ARTIFACTS ws2tcp_local_ffi
     RUNTIME_DEPENDENCY_SET ws2tcp-local-qt-runtime-deps

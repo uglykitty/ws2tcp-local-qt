@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=ws2tcp-local
+Exec=ws2tcp-local-qt
+Icon=ws2tcp-local-qt
+Terminal=false
+Categories=Network;Qt;

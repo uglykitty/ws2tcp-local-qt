@@ -26,6 +26,7 @@ class MainWindow final : public QMainWindow {
  private slots:
   void startProxy();
   void stopProxy();
+  void updateProxyMode(const QString &mode);
   void refreshStatus();
   void appendLog(QString message);
   void toggleWindowVisibility();

@@ -97,6 +97,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
   connect(startButton_, &QPushButton::clicked, this, &MainWindow::startProxy);
   connect(stopButton_, &QPushButton::clicked, this, &MainWindow::stopProxy);
+  connect(proxyModeCombo_, &QComboBox::currentTextChanged, this,
+          &MainWindow::updateProxyMode);
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   connect(systemProxyCheck_, &QCheckBox::toggled, this,
           &MainWindow::setSystemProxyEnabled);
@@ -185,6 +187,22 @@ void MainWindow::stopProxy() {
   }
   refreshStatus();
   updateTrayActions();
+}
+
+void MainWindow::updateProxyMode(const QString &mode) {
+  saveUserSettings();
+  if (handle_ == nullptr ||
+      ws2tcp_status(handle_) != WS2TCP_STATUS_RUNNING) {
+    return;
+  }
+
+  const QByteArray modeUtf8 = mode.toUtf8();
+  const int rc = ws2tcp_set_proxy_mode(handle_, modeUtf8.constData());
+  if (rc == WS2TCP_OK) {
+    logView_->appendPlainText("Proxy mode changed to " + mode);
+  } else {
+    appendError("Failed to change proxy mode");
+  }
 }
 
 void MainWindow::refreshStatus() {

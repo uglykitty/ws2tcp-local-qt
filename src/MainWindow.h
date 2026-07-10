@@ -1,15 +1,15 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-#include <QComboBox>
 #include <QAction>
+#include <QCheckBox>
 #include <QCloseEvent>
+#include <QComboBox>
 #include <QLineEdit>
 #include <QMainWindow>
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
-#include <QCheckBox>
 #include <QSpinBox>
 #include <QSystemTrayIcon>
 #include <QTimer>
@@ -31,6 +31,9 @@ class MainWindow final : public QMainWindow {
   void toggleWindowVisibility();
   void quitFromTray();
   void handleTrayActivation(QSystemTrayIcon::ActivationReason reason);
+#ifdef Q_OS_WIN
+  void setSystemProxyEnabled(bool enabled);
+#endif
 
  protected:
   void closeEvent(QCloseEvent *event) override;
@@ -65,6 +68,11 @@ class MainWindow final : public QMainWindow {
   QAction *showHideAction_ = nullptr;
   QAction *trayStartAction_ = nullptr;
   QAction *trayStopAction_ = nullptr;
+#ifdef Q_OS_WIN
+  QCheckBox *systemProxyCheck_ = nullptr;
+  QAction *traySystemProxyAction_ = nullptr;
+  bool systemProxyActive_ = false;
+#endif
   QAction *quitAction_ = nullptr;
   bool wasRunning_ = false;
   bool allowClose_ = false;

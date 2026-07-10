@@ -10,10 +10,15 @@
 #include <QMessageBox>
 #include <QMetaObject>
 #include <QSettings>
+#include <QSignalBlocker>
 #include <QStyle>
 #include <QStatusBar>
 #include <QVBoxLayout>
 #include <QWidget>
+
+#ifdef Q_OS_WIN
+#include "WindowsSystemProxy.h"
+#endif
 
 namespace {
 
@@ -28,6 +33,9 @@ QIcon applicationIcon() {
 }  // namespace
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
+#ifdef Q_OS_WIN
+  WindowsSystemProxy::recoverStaleSettings();
+#endif
   handle_ = ws2tcp_handle_new();
 
   auto *central = new QWidget(this);
@@ -52,6 +60,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   proxyModeCombo_->addItem("auto");
 
   verifyCertificateCheck_ = new QCheckBox(this);
+#ifdef Q_OS_WIN
+  systemProxyCheck_ = new QCheckBox(this);
+#endif
 
   form->addRow("Listen", listenEdit_);
   form->addRow("Gateway", gatewayEdit_);
@@ -61,6 +72,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   form->addRow("Rule refresh seconds", refreshIntervalSpin_);
   form->addRow("Proxy mode", proxyModeCombo_);
   form->addRow("Verify TLS certificate", verifyCertificateCheck_);
+#ifdef Q_OS_WIN
+  form->addRow("Set system proxy", systemProxyCheck_);
+#endif
 
   auto *buttons = new QHBoxLayout();
   startButton_ = new QPushButton("Start", this);
@@ -83,6 +97,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
   connect(startButton_, &QPushButton::clicked, this, &MainWindow::startProxy);
   connect(stopButton_, &QPushButton::clicked, this, &MainWindow::stopProxy);
+#ifdef Q_OS_WIN
+  connect(systemProxyCheck_, &QCheckBox::toggled, this,
+          &MainWindow::setSystemProxyEnabled);
+#endif
 
   const int logRc =
       ws2tcp_set_log_callback(&MainWindow::handleRustLog, this,
@@ -110,6 +128,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 MainWindow::~MainWindow() {
   saveUserSettings();
 
+#ifdef Q_OS_WIN
+  WindowsSystemProxy::disable(nullptr);
+#endif
+
   if (handle_ != nullptr) {
     ws2tcp_stop(handle_);
     ws2tcp_handle_free(handle_);
@@ -132,6 +154,11 @@ void MainWindow::startProxy() {
     saveUserSettings();
     updateRuntimeStatus("Starting " + listenEdit_->text().trimmed());
     logView_->appendPlainText("Started");
+#ifdef Q_OS_WIN
+    if (systemProxyCheck_->isChecked()) {
+      setSystemProxyEnabled(true);
+    }
+#endif
   } else {
     appendError("Start failed");
   }
@@ -143,6 +170,10 @@ void MainWindow::stopProxy() {
   if (handle_ == nullptr) {
     return;
   }
+
+#ifdef Q_OS_WIN
+  setSystemProxyEnabled(false);
+#endif
 
   const int rc = ws2tcp_stop(handle_);
   if (rc == WS2TCP_OK) {
@@ -171,6 +202,9 @@ void MainWindow::refreshStatus() {
   updateTrayActions();
 
   if (wasRunning_ && !running) {
+#ifdef Q_OS_WIN
+    setSystemProxyEnabled(false);
+#endif
     const QString error =
         handle_ != nullptr ? QString::fromUtf8(ws2tcp_last_error(handle_))
                            : QString();
@@ -212,6 +246,35 @@ void MainWindow::handleTrayActivation(
     toggleWindowVisibility();
   }
 }
+
+#ifdef Q_OS_WIN
+void MainWindow::setSystemProxyEnabled(bool enabled) {
+  if (enabled &&
+      (handle_ == nullptr ||
+       ws2tcp_status(handle_) != WS2TCP_STATUS_RUNNING)) {
+    systemProxyActive_ = false;
+    updateTrayActions();
+    return;
+  }
+
+  QString error;
+  const bool ok = enabled
+                      ? WindowsSystemProxy::enable(listenEdit_->text(), &error)
+                      : WindowsSystemProxy::disable(&error);
+  if (!ok) {
+    if (enabled) {
+      systemProxyActive_ = false;
+    }
+    logView_->appendPlainText("System proxy error: " + error);
+    showError("Failed to update system proxy: " + error);
+  } else {
+    systemProxyActive_ = enabled;
+    logView_->appendPlainText(enabled ? "System proxy enabled"
+                                      : "System proxy disabled");
+  }
+  updateTrayActions();
+}
+#endif
 
 void MainWindow::closeEvent(QCloseEvent *event) {
   if (allowClose_) {
@@ -259,6 +322,10 @@ void MainWindow::setupTrayIcon() {
   showHideAction_ = trayMenu_->addAction("Hide window");
   trayStartAction_ = trayMenu_->addAction("Start");
   trayStopAction_ = trayMenu_->addAction("Stop");
+#ifdef Q_OS_WIN
+  traySystemProxyAction_ = trayMenu_->addAction("System proxy");
+  traySystemProxyAction_->setCheckable(true);
+#endif
   trayMenu_->addSeparator();
   quitAction_ = trayMenu_->addAction("Quit");
 
@@ -270,6 +337,10 @@ void MainWindow::setupTrayIcon() {
           &MainWindow::toggleWindowVisibility);
   connect(trayStartAction_, &QAction::triggered, this, &MainWindow::startProxy);
   connect(trayStopAction_, &QAction::triggered, this, &MainWindow::stopProxy);
+#ifdef Q_OS_WIN
+  connect(traySystemProxyAction_, &QAction::toggled, systemProxyCheck_,
+          &QCheckBox::setChecked);
+#endif
   connect(quitAction_, &QAction::triggered, this, &MainWindow::quitFromTray);
   connect(trayIcon_, &QSystemTrayIcon::activated, this,
           &MainWindow::handleTrayActivation);
@@ -290,6 +361,13 @@ void MainWindow::updateTrayActions() {
     if (trayStopAction_ != nullptr) {
       trayStopAction_->setEnabled(false);
     }
+#ifdef Q_OS_WIN
+    if (traySystemProxyAction_ != nullptr) {
+      const QSignalBlocker blocker(traySystemProxyAction_);
+      traySystemProxyAction_->setChecked(false);
+      traySystemProxyAction_->setEnabled(false);
+    }
+#endif
     return;
   }
 
@@ -301,6 +379,13 @@ void MainWindow::updateTrayActions() {
   if (trayStopAction_ != nullptr) {
     trayStopAction_->setEnabled(running);
   }
+#ifdef Q_OS_WIN
+  if (traySystemProxyAction_ != nullptr) {
+    const QSignalBlocker blocker(traySystemProxyAction_);
+    traySystemProxyAction_->setChecked(systemProxyActive_);
+    traySystemProxyAction_->setEnabled(running);
+  }
+#endif
 }
 
 void MainWindow::loadUserSettings() {
@@ -330,6 +415,10 @@ void MainWindow::loadUserSettings() {
       settings.value("proxy/verify_server_certificate",
                      verifyCertificateCheck_->isChecked())
           .toBool());
+#ifdef Q_OS_WIN
+  systemProxyCheck_->setChecked(
+      settings.value("proxy/set_system_proxy", false).toBool());
+#endif
 }
 
 void MainWindow::saveUserSettings() const {
@@ -345,6 +434,10 @@ void MainWindow::saveUserSettings() const {
   settings.setValue("proxy/proxy_mode", proxyModeCombo_->currentText());
   settings.setValue("proxy/verify_server_certificate",
                     verifyCertificateCheck_->isChecked());
+#ifdef Q_OS_WIN
+  settings.setValue("proxy/set_system_proxy",
+                    systemProxyCheck_->isChecked());
+#endif
 }
 
 void MainWindow::appendError(const QString &prefix) {

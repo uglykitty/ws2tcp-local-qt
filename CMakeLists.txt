@@ -236,13 +236,17 @@ set(WS2TCP_LOCAL_QT_SOURCES
     src/resources.qrc)
 
 if(WIN32)
-    list(APPEND WS2TCP_LOCAL_QT_SOURCES src/resources/app.rc)
+    list(APPEND WS2TCP_LOCAL_QT_SOURCES
+        src/WindowsSystemProxy.cpp
+        src/WindowsSystemProxy.h
+        src/resources/app.rc)
 endif()
 
 add_executable(ws2tcp-local-qt
     ${WS2TCP_LOCAL_QT_SOURCES})
 
 if(WIN32)
+    target_link_libraries(ws2tcp-local-qt PRIVATE wininet)
     set_target_properties(ws2tcp-local-qt PROPERTIES
         WIN32_EXECUTABLE "$<NOT:$<CONFIG:Debug>>")
 endif()

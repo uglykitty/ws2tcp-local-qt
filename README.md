@@ -4,6 +4,13 @@ This is a Qt Widgets GUI that calls the `ws2tcp-local-ffi` C ABI layer.
 The GUI stores user settings with `QSettings` and loads them automatically on
 the next startup.
 
+On Windows, enable **Set system proxy** to point the current user's WinINet
+proxy at the configured local listener while ws2tcp-local is running. The
+previous Windows proxy settings are restored when the proxy stops or the
+application exits. A saved recovery record also allows the application to
+restore settings after an unexpected exit, without overwriting proxy settings
+that another program changed in the meantime.
+
 ## Build
 
 By default CMake builds the Rust FFI crate from `../ws2tcp-local-ffi` with

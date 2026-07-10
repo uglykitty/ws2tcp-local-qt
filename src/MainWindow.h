@@ -31,7 +31,7 @@ class MainWindow final : public QMainWindow {
   void toggleWindowVisibility();
   void quitFromTray();
   void handleTrayActivation(QSystemTrayIcon::ActivationReason reason);
-#ifdef Q_OS_WIN
+#ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   void setSystemProxyEnabled(bool enabled);
 #endif
 
@@ -68,7 +68,7 @@ class MainWindow final : public QMainWindow {
   QAction *showHideAction_ = nullptr;
   QAction *trayStartAction_ = nullptr;
   QAction *trayStopAction_ = nullptr;
-#ifdef Q_OS_WIN
+#ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   QCheckBox *systemProxyCheck_ = nullptr;
   QAction *traySystemProxyAction_ = nullptr;
   bool systemProxyActive_ = false;

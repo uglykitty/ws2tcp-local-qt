@@ -246,6 +246,8 @@ add_executable(ws2tcp-local-qt
     ${WS2TCP_LOCAL_QT_SOURCES})
 
 if(WIN32)
+    target_compile_definitions(ws2tcp-local-qt PRIVATE
+        WS2TCP_SYSTEM_PROXY_AVAILABLE=1)
     target_link_libraries(ws2tcp-local-qt PRIVATE wininet)
     set_target_properties(ws2tcp-local-qt PROPERTIES
         WIN32_EXECUTABLE "$<NOT:$<CONFIG:Debug>>")

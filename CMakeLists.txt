@@ -289,3 +289,35 @@ endif()
 include(\"${WS2TCP_LOCAL_QT_DEPLOY_SCRIPT}\")
 ")
 endif()
+
+if(WIN32)
+    set(CPACK_GENERATOR "NSIS")
+    set(CPACK_PACKAGE_NAME "ws2tcp-local")
+    set(CPACK_PACKAGE_VENDOR "ws2tcp-local")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+        "Local WebSocket-to-TCP proxy")
+    set(CPACK_PACKAGE_INSTALL_DIRECTORY
+        "ws2tcp-local")
+    set(CPACK_PACKAGE_EXECUTABLES
+        "ws2tcp-local-qt" "ws2tcp-local")
+    set(CPACK_CREATE_DESKTOP_LINKS
+        "ws2tcp-local-qt")
+    set(CPACK_RESOURCE_FILE_LICENSE
+        "${CMAKE_CURRENT_LIST_DIR}/LICENSE")
+    set(CPACK_NSIS_MUI_ICON
+        "${CMAKE_CURRENT_LIST_DIR}/src/resources/app-icon.ico")
+    set(CPACK_NSIS_MUI_UNIICON
+        "${CMAKE_CURRENT_LIST_DIR}/src/resources/app-icon.ico")
+    set(CPACK_NSIS_DISPLAY_NAME
+        "ws2tcp-local")
+    set(CPACK_NSIS_PACKAGE_NAME
+        "ws2tcp-local")
+    set(CPACK_NSIS_INSTALLED_ICON_NAME
+        "${CMAKE_INSTALL_BINDIR}\\\\ws2tcp-local-qt.exe")
+    set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+    set(CPACK_NSIS_MODIFY_PATH ON)
+    set(CPACK_PROJECT_CONFIG_FILE
+        "${CMAKE_CURRENT_LIST_DIR}/cmake/CPackOptions.cmake")
+
+    include(CPack)
+endif()

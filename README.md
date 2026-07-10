@@ -31,6 +31,17 @@ cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
 cmake --build build-release
 ```
 
+On Windows, CMake also creates a `package` target backed by CPack and NSIS.
+Build it with a release configuration to produce the installer in the build
+directory. The installer offers options to create a desktop shortcut and add
+the application directory to `PATH`. NSIS must be installed and available to
+CPack:
+
+```powershell
+cmake -S . -B build-release
+cmake --build build-release --config Release --target package
+```
+
 If the FFI crate is not in the default sibling directory, pass its path:
 
 ```bash

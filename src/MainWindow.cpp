@@ -9,6 +9,7 @@
 #include <QIcon>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMenuBar>
 #include <QMessageBox>
 #include <QMetaObject>
 #include <QSettings>
@@ -130,6 +131,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   setWindowTitle("ws2tcp-local");
   setWindowIcon(applicationIcon());
   resize(720, 520);
+
+  auto *helpMenu = menuBar()->addMenu("&Help");
+  auto *aboutAction = helpMenu->addAction("&About ws2tcp-local");
+  connect(aboutAction, &QAction::triggered, this,
+          &MainWindow::showAboutDialog);
 
   connect(startButton_, &QPushButton::clicked, this, &MainWindow::startProxy);
   connect(stopButton_, &QPushButton::clicked, this, &MainWindow::stopProxy);
@@ -295,6 +301,20 @@ void MainWindow::refreshStatus() {
 void MainWindow::appendLog(QString message) {
   logView_->appendPlainText(message);
   updateRuntimeStatusFromLog(message);
+}
+
+void MainWindow::showAboutDialog() {
+  QMessageBox::about(
+      this, "About ws2tcp-local",
+      "<h3>ws2tcp-local</h3>"
+      "<p>A Qt GUI for the ws2tcp-local WebSocket-to-TCP proxy.</p>"
+      "<p><b>Repository:</b> "
+      "<a href=\"https://github.com/uglykitty/ws2tcp-local-qt\">"
+      "github.com/uglykitty/ws2tcp-local-qt</a><br>"
+      "<b>Author:</b> Guofang Wang<br>"
+      "<b>Email:</b> "
+      "<a href=\"mailto:lazysoez@gmail.com\">"
+      "lazysoez@gmail.com</a></p>");
 }
 
 void MainWindow::toggleWindowVisibility() {

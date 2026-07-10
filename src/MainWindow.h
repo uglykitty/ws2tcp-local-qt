@@ -30,6 +30,7 @@ class MainWindow final : public QMainWindow {
   void updateProxyMode(const QString &mode);
   void refreshStatus();
   void appendLog(QString message);
+  void showAboutDialog();
   void toggleWindowVisibility();
   void quitFromTray();
   void handleTrayActivation(QSystemTrayIcon::ActivationReason reason);

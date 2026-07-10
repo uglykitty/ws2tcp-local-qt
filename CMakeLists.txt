@@ -28,12 +28,9 @@ set(WS2TCP_LOCAL_FFI_TARGET_DIR
     CACHE PATH "Cargo target directory for ws2tcp-local-ffi auto-build artifacts")
 set(WS2TCP_LOCAL_FFI_LIBRARY
     ""
-    CACHE FILEPATH "Path to ws2tcp-local FFI runtime library (.so, .dylib, or .dll)")
-set(WS2TCP_LOCAL_FFI_IMPLIB
-    ""
-    CACHE FILEPATH "Path to ws2tcp-local FFI import library on Windows")
+    CACHE FILEPATH "Path to the ws2tcp-local FFI static library")
 
-function(ws2tcp_local_ffi_artifacts profile out_runtime out_implib)
+function(ws2tcp_local_ffi_artifact profile out_library)
     if(WS2TCP_LOCAL_FFI_TARGET_DIR)
         set(artifact_dir "${WS2TCP_LOCAL_FFI_TARGET_DIR}/${profile}")
     else()
@@ -41,22 +38,16 @@ function(ws2tcp_local_ffi_artifacts profile out_runtime out_implib)
     endif()
 
     if(WIN32)
-        set(runtime "${artifact_dir}/ws2tcp_local_ffi.dll")
         if(MSVC)
-            set(implib "${artifact_dir}/ws2tcp_local_ffi.dll.lib")
+            set(library "${artifact_dir}/ws2tcp_local_ffi.lib")
         else()
-            set(implib "${artifact_dir}/libws2tcp_local_ffi.dll.a")
+            set(library "${artifact_dir}/libws2tcp_local_ffi.a")
         endif()
-    elseif(APPLE)
-        set(runtime "${artifact_dir}/libws2tcp_local_ffi.dylib")
-        set(implib "")
     else()
-        set(runtime "${artifact_dir}/libws2tcp_local_ffi.so")
-        set(implib "")
+        set(library "${artifact_dir}/libws2tcp_local_ffi.a")
     endif()
 
-    set("${out_runtime}" "${runtime}" PARENT_SCOPE)
-    set("${out_implib}" "${implib}" PARENT_SCOPE)
+    set("${out_library}" "${library}" PARENT_SCOPE)
 endfunction()
 
 function(ws2tcp_local_ffi_resolve_cratesio out_source_dir out_include_dir)
@@ -189,27 +180,30 @@ if(NOT WS2TCP_LOCAL_FFI_LIBRARY)
         WORKING_DIRECTORY "${WS2TCP_LOCAL_FFI_SOURCE_DIR}"
         COMMENT "Building ws2tcp-local-ffi with Cargo")
 
-    ws2tcp_local_ffi_artifacts(debug WS2TCP_LOCAL_FFI_DEBUG_LIBRARY WS2TCP_LOCAL_FFI_DEBUG_IMPLIB)
-    ws2tcp_local_ffi_artifacts(release WS2TCP_LOCAL_FFI_RELEASE_LIBRARY WS2TCP_LOCAL_FFI_RELEASE_IMPLIB)
+    ws2tcp_local_ffi_artifact(debug WS2TCP_LOCAL_FFI_DEBUG_LIBRARY)
+    ws2tcp_local_ffi_artifact(release WS2TCP_LOCAL_FFI_RELEASE_LIBRARY)
 
     if(CMAKE_BUILD_TYPE MATCHES "^(Release|RelWithDebInfo|MinSizeRel)$")
         set(WS2TCP_LOCAL_FFI_LIBRARY "${WS2TCP_LOCAL_FFI_RELEASE_LIBRARY}")
-        set(WS2TCP_LOCAL_FFI_IMPLIB "${WS2TCP_LOCAL_FFI_RELEASE_IMPLIB}")
     else()
         set(WS2TCP_LOCAL_FFI_LIBRARY "${WS2TCP_LOCAL_FFI_DEBUG_LIBRARY}")
-        set(WS2TCP_LOCAL_FFI_IMPLIB "${WS2TCP_LOCAL_FFI_DEBUG_IMPLIB}")
     endif()
 endif()
 
-add_library(ws2tcp_local_ffi SHARED IMPORTED)
+add_library(ws2tcp_local_ffi STATIC IMPORTED)
 set_target_properties(ws2tcp_local_ffi PROPERTIES
     IMPORTED_LOCATION "${WS2TCP_LOCAL_FFI_LIBRARY}"
-    IMPORTED_NO_SONAME TRUE
     INTERFACE_INCLUDE_DIRECTORIES "${WS2TCP_LOCAL_FFI_INCLUDE_DIR}")
 
-if(WS2TCP_LOCAL_FFI_IMPLIB)
-    set_target_properties(ws2tcp_local_ffi PROPERTIES
-        IMPORTED_IMPLIB "${WS2TCP_LOCAL_FFI_IMPLIB}")
+if(WIN32)
+    set_property(TARGET ws2tcp_local_ffi PROPERTY INTERFACE_LINK_LIBRARIES
+        bcrypt
+        advapi32
+        kernel32
+        ntdll
+        userenv
+        ws2_32
+        dbghelp)
 endif()
 
 if(TARGET ws2tcp_local_ffi_cargo_build)
@@ -219,14 +213,6 @@ if(TARGET ws2tcp_local_ffi_cargo_build)
         IMPORTED_LOCATION_RELEASE "${WS2TCP_LOCAL_FFI_RELEASE_LIBRARY}"
         IMPORTED_LOCATION_RELWITHDEBINFO "${WS2TCP_LOCAL_FFI_RELEASE_LIBRARY}"
         IMPORTED_LOCATION_MINSIZEREL "${WS2TCP_LOCAL_FFI_RELEASE_LIBRARY}")
-
-    if(WS2TCP_LOCAL_FFI_DEBUG_IMPLIB)
-        set_target_properties(ws2tcp_local_ffi PROPERTIES
-            IMPORTED_IMPLIB_DEBUG "${WS2TCP_LOCAL_FFI_DEBUG_IMPLIB}"
-            IMPORTED_IMPLIB_RELEASE "${WS2TCP_LOCAL_FFI_RELEASE_IMPLIB}"
-            IMPORTED_IMPLIB_RELWITHDEBINFO "${WS2TCP_LOCAL_FFI_RELEASE_IMPLIB}"
-            IMPORTED_IMPLIB_MINSIZEREL "${WS2TCP_LOCAL_FFI_RELEASE_IMPLIB}")
-    endif()
 endif()
 
 set(WS2TCP_LOCAL_QT_SOURCES
@@ -280,17 +266,11 @@ install(FILES src/resources/app-icon.png
     RENAME ws2tcp-local-qt.png
     DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps")
 
-install(IMPORTED_RUNTIME_ARTIFACTS ws2tcp_local_ffi
-    RUNTIME_DEPENDENCY_SET ws2tcp-local-qt-runtime-deps
-    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
-
 install(RUNTIME_DEPENDENCY_SET ws2tcp-local-qt-runtime-deps
     DIRECTORIES
         "$<TARGET_FILE_DIR:Qt6::Core>"
         "$<TARGET_FILE_DIR:Qt6::Gui>"
         "$<TARGET_FILE_DIR:Qt6::Widgets>"
-        "$<TARGET_FILE_DIR:ws2tcp_local_ffi>"
     PRE_EXCLUDE_REGEXES
         "api-ms-"
         "ext-ms-"

@@ -49,19 +49,18 @@ cmake -S . -B build \
 cmake --build build
 ```
 
-You can still use a prebuilt FFI library by passing the built library path:
+You can still use a prebuilt static FFI library by passing its path:
 
 ```bash
 cmake -S . -B build \
   -DWS2TCP_LOCAL_FFI_AUTO_BUILD=OFF \
-  -DWS2TCP_LOCAL_FFI_LIBRARY="$PWD/../ws2tcp-local-ffi/target/debug/libws2tcp_local_ffi.so"
+  -DWS2TCP_LOCAL_FFI_LIBRARY="$PWD/../ws2tcp-local-ffi/target/debug/libws2tcp_local_ffi.a"
 cmake --build build
 cmake --install build --prefix target/install
 ```
 
-On macOS use `libws2tcp_local_ffi.dylib`. On Windows,
-`WS2TCP_LOCAL_FFI_LIBRARY` must point to the generated
-`ws2tcp_local_ffi.dll`, and `WS2TCP_LOCAL_FFI_IMPLIB` must point to the
-generated import library used for linking when auto-build is disabled. The
-install step also runs Qt's deployment logic on Windows, including the
+On macOS and MinGW use `libws2tcp_local_ffi.a`. With MSVC,
+`WS2TCP_LOCAL_FFI_LIBRARY` must point to `ws2tcp_local_ffi.lib`. The FFI is
+linked into the executable, so `ws2tcp_local_ffi.dll` is no longer deployed.
+The install step still runs Qt's deployment logic on Windows, including the
 `qwindows` platform plugin.

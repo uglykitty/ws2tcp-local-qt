@@ -119,7 +119,7 @@ DWORD registryDword(const RegistryValue &value) {
 void saveValue(QSettings &settings, const QString &name,
                const RegistryValue &value) {
   settings.setValue(name + "/exists", value.exists);
-  settings.setValue(name + "/type", value.type);
+  settings.setValue(name + "/type", static_cast<uint>(value.type));
   settings.setValue(name + "/data", value.data);
 }
 

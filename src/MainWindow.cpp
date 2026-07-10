@@ -2,6 +2,8 @@
 
 #include <QByteArray>
 #include <QApplication>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -12,11 +14,14 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMetaObject>
+#include <QPushButton>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QSpinBox>
 #include <QScrollBar>
 #include <QStyle>
 #include <QStatusBar>
+#include <QToolBar>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -72,23 +77,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   customRulesLayout->addWidget(customRulesEdit_);
   customRulesLayout->addWidget(customRulesBrowseButton);
 
-  bufferSizeSpin_ = new QSpinBox(this);
-  bufferSizeSpin_->setRange(1, 1024 * 1024);
-  bufferSizeSpin_->setValue(16 * 1024);
-
-  refreshIntervalSpin_ = new QSpinBox(this);
-  refreshIntervalSpin_->setRange(1, 24 * 60 * 60);
-  refreshIntervalSpin_->setValue(60);
-
   proxyModeCombo_ = new QComboBox(this);
   proxyModeCombo_->addItem("global");
   proxyModeCombo_->addItem("auto");
   proxyModeCombo_->setCurrentText("auto");
-
-  closeBehaviorCombo_ = new QComboBox(this);
-  closeBehaviorCombo_->addItem("Ask every time", "ask");
-  closeBehaviorCombo_->addItem("Minimize to tray", "tray");
-  closeBehaviorCombo_->addItem("Exit application", "exit");
 
   verifyCertificateCheck_ = new QCheckBox(this);
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
@@ -100,21 +92,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   form->addRow("Username", usernameEdit_);
   form->addRow("Password", passwordRow);
   form->addRow("Custom rules", customRulesRow);
-  form->addRow("Buffer size", bufferSizeSpin_);
-  form->addRow("Rule refresh seconds", refreshIntervalSpin_);
   form->addRow("Proxy mode", proxyModeCombo_);
-  form->addRow("When closing window", closeBehaviorCombo_);
   form->addRow("Verify TLS certificate", verifyCertificateCheck_);
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   form->addRow("Set system proxy", systemProxyCheck_);
 #endif
-
-  auto *buttons = new QHBoxLayout();
-  startButton_ = new QPushButton("Start", this);
-  stopButton_ = new QPushButton("Stop", this);
-  buttons->addWidget(startButton_);
-  buttons->addWidget(stopButton_);
-  buttons->addStretch();
 
   logView_ = new QPlainTextEdit(this);
   logView_->setReadOnly(true);
@@ -124,7 +106,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   });
 
   root->addLayout(form);
-  root->addLayout(buttons);
   root->addWidget(logView_);
 
   setCentralWidget(central);
@@ -132,13 +113,37 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   setWindowIcon(applicationIcon());
   resize(720, 520);
 
+  startAction_ = new QAction(
+      style()->standardIcon(QStyle::SP_MediaPlay), "&Start", this);
+  startAction_->setToolTip("Start the proxy");
+  stopAction_ = new QAction(
+      style()->standardIcon(QStyle::SP_MediaStop), "S&top", this);
+  stopAction_->setToolTip("Stop the proxy");
+  settingsAction_ = new QAction(
+      style()->standardIcon(QStyle::SP_FileDialogDetailedView),
+      "&Settings", this);
+  settingsAction_->setToolTip("Open settings");
+
+  auto *proxyToolBar = addToolBar("Proxy");
+  proxyToolBar->setObjectName("proxyToolBar");
+  proxyToolBar->addAction(startAction_);
+  proxyToolBar->addAction(stopAction_);
+  proxyToolBar->addSeparator();
+  proxyToolBar->addAction(settingsAction_);
+
+  auto *proxyMenu = menuBar()->addMenu("&Proxy");
+  proxyMenu->addAction(startAction_);
+  proxyMenu->addAction(stopAction_);
+
   auto *helpMenu = menuBar()->addMenu("&Help");
   auto *aboutAction = helpMenu->addAction("&About ws2tcp-local");
   connect(aboutAction, &QAction::triggered, this,
           &MainWindow::showAboutDialog);
 
-  connect(startButton_, &QPushButton::clicked, this, &MainWindow::startProxy);
-  connect(stopButton_, &QPushButton::clicked, this, &MainWindow::stopProxy);
+  connect(startAction_, &QAction::triggered, this, &MainWindow::startProxy);
+  connect(stopAction_, &QAction::triggered, this, &MainWindow::stopProxy);
+  connect(settingsAction_, &QAction::triggered, this,
+          &MainWindow::showSettingsDialog);
   connect(passwordVisibilityButton_, &QToolButton::toggled, this,
           [this](bool visible) {
             passwordEdit_->setEchoMode(visible ? QLineEdit::Normal
@@ -172,15 +177,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
   if (handle_ == nullptr) {
     showError("Failed to create ws2tcp handle");
-    startButton_->setEnabled(false);
-    stopButton_->setEnabled(false);
+    startAction_->setEnabled(false);
+    stopAction_->setEnabled(false);
   }
 
   loadUserSettings();
   connect(proxyModeCombo_, &QComboBox::currentTextChanged, this,
           &MainWindow::updateProxyMode);
-  connect(closeBehaviorCombo_, &QComboBox::currentIndexChanged, this,
-          [this]() { saveUserSettings(); });
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   connect(systemProxyCheck_, &QCheckBox::toggled, this,
           &MainWindow::setSystemProxyEnabled);
@@ -270,15 +273,15 @@ void MainWindow::updateProxyMode(const QString &mode) {
 void MainWindow::refreshStatus() {
   if (handle_ == nullptr) {
     updateRuntimeStatus("Unavailable");
-    startButton_->setEnabled(false);
-    stopButton_->setEnabled(false);
+    startAction_->setEnabled(false);
+    stopAction_->setEnabled(false);
     return;
   }
 
   const bool running =
       ws2tcp_status(handle_) == WS2TCP_STATUS_RUNNING;
-  startButton_->setEnabled(!running);
-  stopButton_->setEnabled(running);
+  startAction_->setEnabled(!running);
+  stopAction_->setEnabled(running);
   updateTrayActions();
 
   if (wasRunning_ && !running) {
@@ -301,6 +304,48 @@ void MainWindow::refreshStatus() {
 void MainWindow::appendLog(QString message) {
   logView_->appendPlainText(message);
   updateRuntimeStatusFromLog(message);
+}
+
+void MainWindow::showSettingsDialog() {
+  QDialog dialog(this);
+  dialog.setWindowTitle("Settings");
+
+  auto *layout = new QVBoxLayout(&dialog);
+  auto *form = new QFormLayout();
+  auto *bufferSizeSpin = new QSpinBox(&dialog);
+  bufferSizeSpin->setRange(1, 1024 * 1024);
+  bufferSizeSpin->setValue(bufferSize_);
+  form->addRow("Buffer size", bufferSizeSpin);
+
+  auto *refreshIntervalSpin = new QSpinBox(&dialog);
+  refreshIntervalSpin->setRange(1, 24 * 60 * 60);
+  refreshIntervalSpin->setValue(refreshIntervalSeconds_);
+  form->addRow("Rule refresh seconds", refreshIntervalSpin);
+
+  auto *closeBehaviorCombo = new QComboBox(&dialog);
+  closeBehaviorCombo->addItem("Ask every time", "ask");
+  closeBehaviorCombo->addItem("Minimize to tray", "tray");
+  closeBehaviorCombo->addItem("Exit application", "exit");
+  const int currentIndex = closeBehaviorCombo->findData(closeBehavior_);
+  if (currentIndex >= 0) {
+    closeBehaviorCombo->setCurrentIndex(currentIndex);
+  }
+  form->addRow("When closing window", closeBehaviorCombo);
+  layout->addLayout(form);
+
+  auto *buttons = new QDialogButtonBox(
+      QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  layout->addWidget(buttons);
+  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+  if (dialog.exec() == QDialog::Accepted) {
+    bufferSize_ = bufferSizeSpin->value();
+    refreshIntervalSeconds_ = refreshIntervalSpin->value();
+    closeBehavior_ = closeBehaviorCombo->currentData().toString();
+    sessionCloseBehavior_.clear();
+    saveUserSettings();
+  }
 }
 
 void MainWindow::showAboutDialog() {
@@ -376,7 +421,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     return;
   }
 
-  QString behavior = closeBehaviorCombo_->currentData().toString();
+  QString behavior = closeBehavior_;
   if (behavior == "ask" && !sessionCloseBehavior_.isEmpty()) {
     behavior = sessionCloseBehavior_;
   }
@@ -405,10 +450,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 
     sessionCloseBehavior_ = behavior;
     if (rememberChoice) {
-      const int index = closeBehaviorCombo_->findData(behavior);
-      if (index >= 0) {
-        closeBehaviorCombo_->setCurrentIndex(index);
-      }
+      closeBehavior_ = behavior;
       QSettings settings;
       settings.setValue("ui/close_behavior", behavior);
       settings.sync();
@@ -431,8 +473,8 @@ QByteArray MainWindow::buildConfigJson() const {
   QJsonObject config;
   config["listen"] = listenEdit_->text().trimmed();
   config["gateway"] = gatewayEdit_->text().trimmed();
-  config["buffer_size"] = bufferSizeSpin_->value();
-  config["rule_refresh_interval_secs"] = refreshIntervalSpin_->value();
+  config["buffer_size"] = bufferSize_;
+  config["rule_refresh_interval_secs"] = refreshIntervalSeconds_;
   config["proxy_mode"] = proxyModeCombo_->currentText();
   config["verify_server_certificate"] = verifyCertificateCheck_->isChecked();
 
@@ -455,8 +497,8 @@ void MainWindow::setupTrayIcon() {
 
   trayMenu_ = new QMenu(this);
   showHideAction_ = trayMenu_->addAction("Hide window");
-  trayStartAction_ = trayMenu_->addAction("Start");
-  trayStopAction_ = trayMenu_->addAction("Stop");
+  trayMenu_->addAction(startAction_);
+  trayMenu_->addAction(stopAction_);
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   traySystemProxyAction_ = trayMenu_->addAction("Set system proxy");
   traySystemProxyAction_->setCheckable(true);
@@ -470,8 +512,6 @@ void MainWindow::setupTrayIcon() {
 
   connect(showHideAction_, &QAction::triggered, this,
           &MainWindow::toggleWindowVisibility);
-  connect(trayStartAction_, &QAction::triggered, this, &MainWindow::startProxy);
-  connect(trayStopAction_, &QAction::triggered, this, &MainWindow::stopProxy);
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   connect(traySystemProxyAction_, &QAction::toggled, systemProxyCheck_,
           &QCheckBox::setChecked);
@@ -490,12 +530,8 @@ void MainWindow::updateTrayActions() {
   }
 
   if (handle_ == nullptr) {
-    if (trayStartAction_ != nullptr) {
-      trayStartAction_->setEnabled(false);
-    }
-    if (trayStopAction_ != nullptr) {
-      trayStopAction_->setEnabled(false);
-    }
+    startAction_->setEnabled(false);
+    stopAction_->setEnabled(false);
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
     if (traySystemProxyAction_ != nullptr) {
       const QSignalBlocker blocker(traySystemProxyAction_);
@@ -508,12 +544,8 @@ void MainWindow::updateTrayActions() {
 
   const bool running =
       ws2tcp_status(handle_) == WS2TCP_STATUS_RUNNING;
-  if (trayStartAction_ != nullptr) {
-    trayStartAction_->setEnabled(!running);
-  }
-  if (trayStopAction_ != nullptr) {
-    trayStopAction_->setEnabled(running);
-  }
+  startAction_->setEnabled(!running);
+  stopAction_->setEnabled(running);
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   if (traySystemProxyAction_ != nullptr) {
     const QSignalBlocker blocker(traySystemProxyAction_);
@@ -546,12 +578,18 @@ void MainWindow::loadUserSettings() {
     }
   }
   customRulesEdit_->setText(settings.value("proxy/custom_rules").toString());
-  bufferSizeSpin_->setValue(
-      settings.value("proxy/buffer_size", bufferSizeSpin_->value()).toInt());
-  refreshIntervalSpin_->setValue(settings
-                                     .value("proxy/rule_refresh_interval_secs",
-                                            refreshIntervalSpin_->value())
-                                     .toInt());
+  const int bufferSize =
+      settings.value("proxy/buffer_size", bufferSize_).toInt();
+  if (bufferSize >= 1 && bufferSize <= 1024 * 1024) {
+    bufferSize_ = bufferSize;
+  }
+  const int refreshInterval =
+      settings
+          .value("proxy/rule_refresh_interval_secs", refreshIntervalSeconds_)
+          .toInt();
+  if (refreshInterval >= 1 && refreshInterval <= 24 * 60 * 60) {
+    refreshIntervalSeconds_ = refreshInterval;
+  }
 
   const QString proxyMode =
       settings.value("proxy/proxy_mode", proxyModeCombo_->currentText())
@@ -561,11 +599,11 @@ void MainWindow::loadUserSettings() {
     proxyModeCombo_->setCurrentIndex(proxyModeIndex);
   }
 
-  const QString closeBehavior =
-      settings.value("ui/close_behavior", "ask").toString();
-  const int closeBehaviorIndex = closeBehaviorCombo_->findData(closeBehavior);
-  if (closeBehaviorIndex >= 0) {
-    closeBehaviorCombo_->setCurrentIndex(closeBehaviorIndex);
+  const QString closeBehavior = settings.value("ui/close_behavior", "ask")
+                                    .toString();
+  if (closeBehavior == "ask" || closeBehavior == "tray" ||
+      closeBehavior == "exit") {
+    closeBehavior_ = closeBehavior;
   }
 
   verifyCertificateCheck_->setChecked(
@@ -587,12 +625,11 @@ void MainWindow::saveUserSettings() const {
   settings.setValue("proxy/password", passwordEdit_->text());
   settings.remove("proxy/basic_auth");
   settings.setValue("proxy/custom_rules", customRulesEdit_->text());
-  settings.setValue("proxy/buffer_size", bufferSizeSpin_->value());
+  settings.setValue("proxy/buffer_size", bufferSize_);
   settings.setValue("proxy/rule_refresh_interval_secs",
-                    refreshIntervalSpin_->value());
+                    refreshIntervalSeconds_);
   settings.setValue("proxy/proxy_mode", proxyModeCombo_->currentText());
-  settings.setValue("ui/close_behavior",
-                    closeBehaviorCombo_->currentData().toString());
+  settings.setValue("ui/close_behavior", closeBehavior_);
   settings.setValue("proxy/verify_server_certificate",
                     verifyCertificateCheck_->isChecked());
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE

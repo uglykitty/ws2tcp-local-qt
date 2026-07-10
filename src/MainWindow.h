@@ -9,8 +9,6 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QPlainTextEdit>
-#include <QPushButton>
-#include <QSpinBox>
 #include <QSystemTrayIcon>
 #include <QTimer>
 #include <QToolButton>
@@ -30,6 +28,7 @@ class MainWindow final : public QMainWindow {
   void updateProxyMode(const QString &mode);
   void refreshStatus();
   void appendLog(QString message);
+  void showSettingsDialog();
   void showAboutDialog();
   void toggleWindowVisibility();
   void quitFromTray();
@@ -60,20 +59,16 @@ class MainWindow final : public QMainWindow {
   QLineEdit *passwordEdit_ = nullptr;
   QToolButton *passwordVisibilityButton_ = nullptr;
   QLineEdit *customRulesEdit_ = nullptr;
-  QSpinBox *bufferSizeSpin_ = nullptr;
-  QSpinBox *refreshIntervalSpin_ = nullptr;
   QComboBox *proxyModeCombo_ = nullptr;
-  QComboBox *closeBehaviorCombo_ = nullptr;
   QCheckBox *verifyCertificateCheck_ = nullptr;
-  QPushButton *startButton_ = nullptr;
-  QPushButton *stopButton_ = nullptr;
+  QAction *startAction_ = nullptr;
+  QAction *stopAction_ = nullptr;
+  QAction *settingsAction_ = nullptr;
   QPlainTextEdit *logView_ = nullptr;
   QTimer *statusTimer_ = nullptr;
   QSystemTrayIcon *trayIcon_ = nullptr;
   QMenu *trayMenu_ = nullptr;
   QAction *showHideAction_ = nullptr;
-  QAction *trayStartAction_ = nullptr;
-  QAction *trayStopAction_ = nullptr;
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   QCheckBox *systemProxyCheck_ = nullptr;
   QAction *traySystemProxyAction_ = nullptr;
@@ -82,6 +77,9 @@ class MainWindow final : public QMainWindow {
   QAction *quitAction_ = nullptr;
   bool wasRunning_ = false;
   bool allowClose_ = false;
+  int bufferSize_ = 16 * 1024;
+  int refreshIntervalSeconds_ = 60;
+  QString closeBehavior_ = "ask";
   QString sessionCloseBehavior_;
   QString runtimeStatus_;
 };

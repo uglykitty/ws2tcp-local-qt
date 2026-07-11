@@ -67,15 +67,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   passwordLayout->addWidget(passwordEdit_);
   passwordLayout->addWidget(passwordVisibilityButton_);
   customRulesEdit_ = new QLineEdit(this);
-  auto *customRulesBrowseButton = new QToolButton(this);
-  customRulesBrowseButton->setText("Browse...");
-  customRulesBrowseButton->setToolTip("Select custom rules file");
+  customRulesBrowseButton_ = new QToolButton(this);
+  customRulesBrowseButton_->setText("Browse...");
+  customRulesBrowseButton_->setToolTip("Select custom rules file");
 
   auto *customRulesRow = new QWidget(this);
   auto *customRulesLayout = new QHBoxLayout(customRulesRow);
   customRulesLayout->setContentsMargins(0, 0, 0, 0);
   customRulesLayout->addWidget(customRulesEdit_);
-  customRulesLayout->addWidget(customRulesBrowseButton);
+  customRulesLayout->addWidget(customRulesBrowseButton_);
 
   proxyModeCombo_ = new QComboBox(this);
   proxyModeCombo_->addItem("global");
@@ -152,7 +152,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
             passwordVisibilityButton_->setToolTip(visible ? "Hide password"
                                                           : "Show password");
           });
-  connect(customRulesBrowseButton, &QToolButton::clicked, this, [this]() {
+  connect(customRulesBrowseButton_, &QToolButton::clicked, this, [this]() {
     QString initialPath = customRulesEdit_->text().trimmed();
     if (!initialPath.isEmpty() && QFileInfo(initialPath).isFile()) {
       initialPath = QFileInfo(initialPath).absolutePath();
@@ -219,6 +219,7 @@ void MainWindow::startProxy() {
   const int rc = ws2tcp_start(handle_, config.constData());
   if (rc == WS2TCP_OK) {
     saveUserSettings();
+    updateConfigurationInputs(true);
     updateRuntimeStatus("Starting " + listenEdit_->text().trimmed());
     logView_->appendPlainText("Started");
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
@@ -245,6 +246,7 @@ void MainWindow::stopProxy() {
   const int rc = ws2tcp_stop(handle_);
   if (rc == WS2TCP_OK) {
     saveUserSettings();
+    updateConfigurationInputs(false);
     updateRuntimeStatus("Stopped");
     logView_->appendPlainText("Stopped");
   } else {
@@ -282,6 +284,7 @@ void MainWindow::refreshStatus() {
       ws2tcp_status(handle_) == WS2TCP_STATUS_RUNNING;
   startAction_->setEnabled(!running);
   stopAction_->setEnabled(running);
+  updateConfigurationInputs(running);
   updateTrayActions();
 
   if (wasRunning_ && !running) {
@@ -315,11 +318,16 @@ void MainWindow::showSettingsDialog() {
   auto *bufferSizeSpin = new QSpinBox(&dialog);
   bufferSizeSpin->setRange(1, 1024 * 1024);
   bufferSizeSpin->setValue(bufferSize_);
+  const bool running =
+      handle_ != nullptr &&
+      ws2tcp_status(handle_) == WS2TCP_STATUS_RUNNING;
+  bufferSizeSpin->setEnabled(!running);
   form->addRow("Buffer size", bufferSizeSpin);
 
   auto *refreshIntervalSpin = new QSpinBox(&dialog);
   refreshIntervalSpin->setRange(1, 24 * 60 * 60);
   refreshIntervalSpin->setValue(refreshIntervalSeconds_);
+  refreshIntervalSpin->setEnabled(!running);
   form->addRow("Rule refresh seconds", refreshIntervalSpin);
 
   auto *closeBehaviorCombo = new QComboBox(&dialog);
@@ -346,6 +354,18 @@ void MainWindow::showSettingsDialog() {
     sessionCloseBehavior_.clear();
     saveUserSettings();
   }
+}
+
+void MainWindow::updateConfigurationInputs(bool running) {
+  const bool editable = !running;
+  listenEdit_->setEnabled(editable);
+  gatewayEdit_->setEnabled(editable);
+  usernameEdit_->setEnabled(editable);
+  passwordEdit_->setEnabled(editable);
+  passwordVisibilityButton_->setEnabled(editable);
+  customRulesEdit_->setEnabled(editable);
+  customRulesBrowseButton_->setEnabled(editable);
+  verifyCertificateCheck_->setEnabled(editable);
 }
 
 void MainWindow::showAboutDialog() {

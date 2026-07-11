@@ -44,6 +44,7 @@ class MainWindow final : public QMainWindow {
   QByteArray buildConfigJson() const;
   void setupTrayIcon();
   void updateTrayActions();
+  void updateConfigurationInputs(bool running);
   void loadUserSettings();
   void saveUserSettings() const;
   void appendError(const QString &prefix);
@@ -59,6 +60,7 @@ class MainWindow final : public QMainWindow {
   QLineEdit *passwordEdit_ = nullptr;
   QToolButton *passwordVisibilityButton_ = nullptr;
   QLineEdit *customRulesEdit_ = nullptr;
+  QToolButton *customRulesBrowseButton_ = nullptr;
   QComboBox *proxyModeCombo_ = nullptr;
   QCheckBox *verifyCertificateCheck_ = nullptr;
   QAction *startAction_ = nullptr;

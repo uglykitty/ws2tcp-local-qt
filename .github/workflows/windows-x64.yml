@@ -1,0 +1,69 @@
+name: Build Windows x64
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Windows x64
+    runs-on: windows-2022
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out Qt GUI
+        uses: actions/checkout@v6
+        with:
+          path: ws2tcp-local-qt
+
+      - name: Check out CLI
+        uses: actions/checkout@v6
+        with:
+          repository: uglykitty/ws2tcp-local
+          path: ws2tcp-local
+
+      - name: Check out core library
+        uses: actions/checkout@v6
+        with:
+          repository: uglykitty/ws2tcp-local-core
+          path: ws2tcp-local-core
+
+      - name: Check out FFI library
+        uses: actions/checkout@v6
+        with:
+          repository: uglykitty/ws2tcp-local-ffi
+          path: ws2tcp-local-ffi
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.8.3
+          arch: win64_msvc2022_64
+          cache: true
+
+      - name: Configure
+        run: >-
+          cmake
+          -S ws2tcp-local-qt
+          -B build
+          -A x64
+
+      - name: Build installer
+        run: cmake --build build --config Release --target package --parallel
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v5
+        with:
+          name: ws2tcp-local-windows-x64
+          path: build/*.exe
+          if-no-files-found: error

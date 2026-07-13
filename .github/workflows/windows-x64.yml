@@ -65,7 +65,7 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: ws2tcp-local-windows-x64
-          path: build/*.exe
+          path: build/ws2tcp-local-*-win64.exe
           if-no-files-found: error
 
       - name: Publish GitHub Release
@@ -77,7 +77,7 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
 
-          installers=(build/*.exe)
+          installers=(build/ws2tcp-local-*-win64.exe)
           if [[ ${#installers[@]} -ne 1 ]]; then
             echo "Expected exactly one installer, found ${#installers[@]}" >&2
             exit 1

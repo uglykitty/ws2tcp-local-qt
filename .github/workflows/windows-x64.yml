@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -67,3 +67,27 @@ jobs:
           name: ws2tcp-local-windows-x64
           path: build/*.exe
           if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          installers=(build/*.exe)
+          if [[ ${#installers[@]} -ne 1 ]]; then
+            echo "Expected exactly one installer, found ${#installers[@]}" >&2
+            exit 1
+          fi
+
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${installers[0]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${installers[0]}" \
+              --verify-tag \
+              --generate-notes \
+              --title "$GITHUB_REF_NAME"
+          fi

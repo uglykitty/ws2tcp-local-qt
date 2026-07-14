@@ -65,7 +65,7 @@ To fetch a different published FFI crate version from crates.io:
 ```bash
 cmake -S . -B build \
   -DWS2TCP_LOCAL_FFI_SOURCE_DIR=/path/that/does/not/exist \
-  -DWS2TCP_LOCAL_FFI_CRATE_VERSION=0.1.1
+  -DWS2TCP_LOCAL_FFI_CRATE_VERSION=0.1.2
 cmake --build build
 ```
 

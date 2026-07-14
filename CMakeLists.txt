@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(ws2tcp-local-qt VERSION 0.1.1 LANGUAGES CXX)
+project(ws2tcp-local-qt VERSION 0.1.2 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(FetchContent)

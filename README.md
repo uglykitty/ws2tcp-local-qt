@@ -11,6 +11,13 @@ application exits. A saved recovery record also allows the application to
 restore settings after an unexpected exit, without overwriting proxy settings
 that another program changed in the meantime.
 
+On macOS, **Set system proxy** applies the local listener as the HTTP and HTTPS
+proxy for each enabled network service. macOS may request administrator
+authorization when applying or restoring network settings. The application
+itself continues to run as the signed-in user. Existing per-service settings
+are saved and restored, with the same unexpected-exit and ownership safeguards
+as the Windows implementation.
+
 ## Build
 
 By default CMake uses Corrosion to build the `ws2tcp-local` CLI from
@@ -43,6 +50,35 @@ installed and available to CPack:
 cmake -S . -B build-release
 cmake --build build-release --config Release --target package
 ```
+
+On macOS, the `package` target creates a GUI-only drag-and-drop DMG. The app
+bundle contains the required Qt frameworks and plugins; the command-line
+binary is intentionally not installed in the DMG:
+
+```bash
+cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release --target package
+```
+
+Public releases should sign the app with a **Developer ID Application**
+certificate, enable the hardened runtime and secure timestamp, and submit the
+resulting DMG with `xcrun notarytool` before stapling its notarization ticket.
+
+## GitHub Actions
+
+`build.yml` builds Windows x64 and macOS arm64 packages for pushes to `main`,
+pull requests, and manual runs. `release.yml` runs for `v*` tags, notarizes the
+macOS package, and publishes the Windows installer and macOS DMG together in a
+single GitHub Release.
+
+Configure these repository Actions secrets before pushing a release tag:
+
+- `MACOS_CERTIFICATE_P12`: base64-encoded Developer ID Application `.p12`
+- `MACOS_CERTIFICATE_PASSWORD`: password used when exporting the `.p12`
+- `MACOS_SIGNING_IDENTITY`: full `Developer ID Application: ... (TEAM_ID)` name
+- `APPLE_ID`: Apple Developer account email
+- `APPLE_APP_PASSWORD`: app-specific password used by `notarytool`
+- `APPLE_TEAM_ID`: Apple Developer team ID
 
 If the CLI crate is not in the default sibling directory, pass its path:
 

@@ -241,6 +241,7 @@ set(WS2TCP_LOCAL_QT_SOURCES
     src/main.cpp
     src/MainWindow.cpp
     src/MainWindow.h
+    src/SystemProxy.h
     src/resources.qrc)
 
 if(WIN32)
@@ -250,8 +251,51 @@ if(WIN32)
         src/resources/app.rc)
 endif()
 
+if(APPLE)
+    list(APPEND WS2TCP_LOCAL_QT_SOURCES
+        src/MacSystemProxy.cpp
+        src/MacSystemProxy.h)
+endif()
+
 add_executable(ws2tcp-local-qt
     ${WS2TCP_LOCAL_QT_SOURCES})
+
+if(APPLE)
+    set_target_properties(ws2tcp-local-qt PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.uglykitty.ws2tcp-local"
+        MACOSX_BUNDLE_BUNDLE_NAME "ws2tcp-local"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        OUTPUT_NAME "ws2tcp-local")
+    find_library(SYSTEM_CONFIGURATION_FRAMEWORK SystemConfiguration REQUIRED)
+    find_library(SECURITY_FRAMEWORK Security REQUIRED)
+    target_compile_definitions(ws2tcp-local-qt PRIVATE
+        WS2TCP_SYSTEM_PROXY_AVAILABLE=1)
+    target_link_libraries(ws2tcp-local-qt PRIVATE
+        "${SYSTEM_CONFIGURATION_FRAMEWORK}"
+        "${SECURITY_FRAMEWORK}")
+endif()
+
+if(APPLE)
+    set(WS2TCP_MACOS_SIGNING_IDENTITY "-" CACHE STRING
+        "Developer ID Application identity, or '-' for an ad-hoc signature")
+    set(WS2TCP_MACOS_DEPLOY_OPTIONS)
+    if(NOT WS2TCP_MACOS_SIGNING_IDENTITY STREQUAL "-")
+        list(APPEND WS2TCP_MACOS_DEPLOY_OPTIONS
+            "-sign-for-notarization=${WS2TCP_MACOS_SIGNING_IDENTITY}")
+    endif()
+    qt_generate_deploy_app_script(
+        TARGET ws2tcp-local-qt
+        OUTPUT_SCRIPT WS2TCP_LOCAL_QT_MACOS_DEPLOY_SCRIPT
+        NO_PLUGINS
+        NO_TRANSLATIONS
+        DEPLOY_TOOL_OPTIONS ${WS2TCP_MACOS_DEPLOY_OPTIONS})
+    configure_file(
+        cmake/SignMacOS.cmake.in
+        "${CMAKE_CURRENT_BINARY_DIR}/SignMacOS.cmake"
+        @ONLY)
+endif()
 
 if(WIN32)
     target_compile_definitions(ws2tcp-local-qt PRIVATE
@@ -283,28 +327,40 @@ install(TARGETS ws2tcp-local-qt
     BUNDLE DESTINATION .
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
-install(PROGRAMS "$<TARGET_FILE:ws2tcp-local>"
-    DESTINATION "${CMAKE_INSTALL_BINDIR}")
+if(NOT APPLE)
+    install(PROGRAMS "$<TARGET_FILE:ws2tcp-local>"
+        DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
-install(FILES data/ws2tcp-local-qt.desktop
-    DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+    install(FILES data/ws2tcp-local-qt.desktop
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
 
-install(FILES src/resources/app-icon.png
-    RENAME ws2tcp-local-qt.png
-    DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps")
+    install(FILES src/resources/app-icon.png
+        RENAME ws2tcp-local-qt.png
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps")
 
-install(RUNTIME_DEPENDENCY_SET ws2tcp-local-qt-runtime-deps
-    DIRECTORIES
-        "$<TARGET_FILE_DIR:Qt6::Core>"
-        "$<TARGET_FILE_DIR:Qt6::Gui>"
-        "$<TARGET_FILE_DIR:Qt6::Widgets>"
-    PRE_EXCLUDE_REGEXES
-        "api-ms-"
-        "ext-ms-"
-    POST_EXCLUDE_REGEXES
-        ".*[\\\\/]system32[\\\\/].*"
-    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+    install(RUNTIME_DEPENDENCY_SET ws2tcp-local-qt-runtime-deps
+        DIRECTORIES
+            "$<TARGET_FILE_DIR:Qt6::Core>"
+            "$<TARGET_FILE_DIR:Qt6::Gui>"
+            "$<TARGET_FILE_DIR:Qt6::Widgets>"
+        PRE_EXCLUDE_REGEXES
+            "api-ms-"
+            "ext-ms-"
+        POST_EXCLUDE_REGEXES
+            ".*[\\\\/]system32[\\\\/].*"
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+endif()
+
+if(APPLE)
+    install(SCRIPT "${WS2TCP_LOCAL_QT_MACOS_DEPLOY_SCRIPT}")
+    get_target_property(QT_COCOA_PLUGIN
+        Qt6::QCocoaIntegrationPlugin IMPORTED_LOCATION)
+    file(REAL_PATH "${QT_COCOA_PLUGIN}" QT_COCOA_PLUGIN_REAL_PATH)
+    install(FILES "${QT_COCOA_PLUGIN_REAL_PATH}"
+        DESTINATION "ws2tcp-local.app/Contents/PlugIns/platforms")
+    install(SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/SignMacOS.cmake")
+endif()
 
 if(WIN32)
     install(CODE "
@@ -345,6 +401,22 @@ if(WIN32)
     set(CPACK_NSIS_MODIFY_PATH ON)
     set(CPACK_PROJECT_CONFIG_FILE
         "${CMAKE_CURRENT_LIST_DIR}/cmake/CPackOptions.cmake")
+
+    include(CPack)
+endif()
+
+if(APPLE)
+    set(CPACK_GENERATOR "DragNDrop")
+    set(CPACK_PACKAGE_NAME "ws2tcp-local")
+    set(CPACK_PACKAGE_VENDOR "ws2tcp-local")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+        "Local WebSocket-to-TCP proxy")
+    set(CPACK_PACKAGE_FILE_NAME
+        "ws2tcp-local-${PROJECT_VERSION}-macos-${CMAKE_SYSTEM_PROCESSOR}")
+    set(CPACK_DMG_VOLUME_NAME "ws2tcp-local ${PROJECT_VERSION}")
+    set(CPACK_DMG_FORMAT "UDZO")
+    set(CPACK_RESOURCE_FILE_LICENSE
+        "${CMAKE_CURRENT_LIST_DIR}/LICENSE")
 
     include(CPack)
 endif()

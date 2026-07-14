@@ -1,0 +1,232 @@
+name: Release packages
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows x64
+    runs-on: windows-2022
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out Qt GUI
+        uses: actions/checkout@v6
+        with:
+          path: ws2tcp-local-qt
+
+      - name: Check out CLI
+        uses: actions/checkout@v6
+        with:
+          repository: uglykitty/ws2tcp-local
+          path: ws2tcp-local
+
+      - name: Check out core library
+        uses: actions/checkout@v6
+        with:
+          repository: uglykitty/ws2tcp-local-core
+          path: ws2tcp-local-core
+
+      - name: Check out FFI library
+        uses: actions/checkout@v6
+        with:
+          repository: uglykitty/ws2tcp-local-ffi
+          path: ws2tcp-local-ffi
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.10.3
+          arch: win64_msvc2022_64
+          cache: true
+
+      - name: Configure
+        run: cmake -S ws2tcp-local-qt -B build -A x64
+
+      - name: Build installer
+        run: cmake --build build --config Release --target package --parallel
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: ws2tcp-local-windows-x64
+          path: build/ws2tcp-local-*-win64.exe
+          if-no-files-found: error
+
+  macos:
+    name: macOS arm64 signed and notarized
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+    steps:
+      - name: Check required signing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            MACOS_CERTIFICATE_P12 \
+            MACOS_CERTIFICATE_PASSWORD \
+            MACOS_SIGNING_IDENTITY \
+            APPLE_ID \
+            APPLE_APP_PASSWORD \
+            APPLE_TEAM_ID
+          do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing required GitHub secret: ${name}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Check out Qt GUI
+        uses: actions/checkout@v6
+        with:
+          path: ws2tcp-local-qt
+
+      - name: Check out CLI
+        uses: actions/checkout@v6
+        with:
+          repository: uglykitty/ws2tcp-local
+          path: ws2tcp-local
+
+      - name: Check out core library
+        uses: actions/checkout@v6
+        with:
+          repository: uglykitty/ws2tcp-local-core
+          path: ws2tcp-local-core
+
+      - name: Check out FFI library
+        uses: actions/checkout@v6
+        with:
+          repository: uglykitty/ws2tcp-local-ffi
+          path: ws2tcp-local-ffi
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.10.3
+          arch: clang_64
+          cache: true
+
+      - name: Import Developer ID certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          certificate="$RUNNER_TEMP/developer-id.p12"
+          keychain="$RUNNER_TEMP/ws2tcp-signing.keychain-db"
+
+          printf '%s' "$MACOS_CERTIFICATE_P12" | base64 -D > "$certificate"
+          security create-keychain -p "$RUNNER_TEMP" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$RUNNER_TEMP" "$keychain"
+          security import "$certificate" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -A \
+            -f pkcs12 \
+            -k "$keychain"
+          security list-keychains -d user -s "$keychain"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s \
+            -k "$RUNNER_TEMP" \
+            "$keychain"
+
+      - name: Configure
+        shell: bash
+        run: >-
+          cmake
+          -S ws2tcp-local-qt
+          -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DWS2TCP_MACOS_SIGNING_IDENTITY="$MACOS_SIGNING_IDENTITY"
+
+      - name: Build signed DMG
+        run: cmake --build build --target package --parallel
+
+      - name: Sign, notarize, and staple DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          images=(build/ws2tcp-local-*-macos-arm64.dmg)
+          if [[ ${#images[@]} -ne 1 ]]; then
+            echo "Expected exactly one DMG, found ${#images[@]}" >&2
+            exit 1
+          fi
+
+          codesign --force --timestamp \
+            --sign "$MACOS_SIGNING_IDENTITY" "${images[0]}"
+          xcrun notarytool submit "${images[0]}" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "${images[0]}"
+          xcrun stapler validate "${images[0]}"
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v7
+        with:
+          name: ws2tcp-local-macos-arm64
+          path: build/ws2tcp-local-*-macos-arm64.dmg
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs:
+      - windows
+      - macos
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mapfile -t packages < <(find dist -maxdepth 1 -type f \
+            \( -name '*.exe' -o -name '*.dmg' \) -print | sort)
+          if [[ ${#packages[@]} -ne 2 ]]; then
+            echo "Expected one Windows installer and one macOS DMG" >&2
+            find dist -maxdepth 2 -type f -print >&2
+            exit 1
+          fi
+
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${packages[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${packages[@]}" \
+              --verify-tag \
+              --generate-notes \
+              --title "$GITHUB_REF_NAME"
+          fi

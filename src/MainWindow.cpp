@@ -26,7 +26,7 @@
 #include <QWidget>
 
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
-#include "WindowsSystemProxy.h"
+#include "SystemProxy.h"
 #endif
 
 namespace {
@@ -43,7 +43,7 @@ QIcon applicationIcon() {
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
-  WindowsSystemProxy::recoverStaleSettings();
+  SystemProxy::recoverStaleSettings();
 #endif
   handle_ = ws2tcp_handle_new();
 
@@ -196,7 +196,7 @@ MainWindow::~MainWindow() {
   saveUserSettings();
 
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
-  WindowsSystemProxy::disable(nullptr);
+  SystemProxy::disable(nullptr);
 #endif
 
   if (handle_ != nullptr) {
@@ -417,13 +417,14 @@ void MainWindow::setSystemProxyEnabled(bool enabled) {
   }
 
   QString error;
-  const bool ok = enabled
-                      ? WindowsSystemProxy::enable(listenEdit_->text(), &error)
-                      : WindowsSystemProxy::disable(&error);
+  const bool ok = enabled ? SystemProxy::enable(listenEdit_->text(), &error)
+                          : SystemProxy::disable(&error);
   if (!ok) {
     if (enabled) {
       systemProxyActive_ = false;
     }
+    const QSignalBlocker blocker(systemProxyCheck_);
+    systemProxyCheck_->setChecked(systemProxyActive_);
     logView_->appendPlainText("System proxy error: " + error);
     showError("Failed to update system proxy: " + error);
   } else {

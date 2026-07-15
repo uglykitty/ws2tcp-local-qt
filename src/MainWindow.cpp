@@ -14,6 +14,8 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMetaObject>
+#include <QPainter>
+#include <QPainterPath>
 #include <QPushButton>
 #include <QSettings>
 #include <QSignalBlocker>
@@ -25,6 +27,8 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <cmath>
+
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
 #include "SystemProxy.h"
 #endif
@@ -35,6 +39,50 @@ QIcon applicationIcon() {
   QIcon icon(":/icons/app-icon.png");
   if (icon.isNull()) {
     icon = QApplication::style()->standardIcon(QStyle::SP_ComputerIcon);
+  }
+  return icon;
+}
+
+QPixmap gearPixmap(int size, const QColor &color) {
+  QPixmap pixmap(size, size);
+  pixmap.fill(Qt::transparent);
+
+  constexpr int toothCount = 8;
+  constexpr double pi = 3.14159265358979323846;
+  const QPointF center(size / 2.0, size / 2.0);
+  const double outerRadius = size * 0.46;
+  const double rootRadius = size * 0.34;
+
+  QPainterPath gear;
+  for (int point = 0; point < toothCount * 4; ++point) {
+    const double radius = point % 4 < 2 ? outerRadius : rootRadius;
+    const double angle = -pi / 2.0 + point * pi / (toothCount * 2.0);
+    const QPointF vertex(center.x() + std::cos(angle) * radius,
+                         center.y() + std::sin(angle) * radius);
+    if (point == 0) {
+      gear.moveTo(vertex);
+    } else {
+      gear.lineTo(vertex);
+    }
+  }
+  gear.closeSubpath();
+  gear.addEllipse(center, size * 0.14, size * 0.14);
+  gear.setFillRule(Qt::OddEvenFill);
+
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  painter.fillPath(gear, color);
+  return pixmap;
+}
+
+QIcon settingsIcon(const QPalette &palette) {
+  QIcon icon;
+  for (const int size : {16, 24, 32}) {
+    icon.addPixmap(gearPixmap(size, palette.color(QPalette::ButtonText)),
+                   QIcon::Normal);
+    icon.addPixmap(gearPixmap(size, palette.color(QPalette::Disabled,
+                                                  QPalette::ButtonText)),
+                   QIcon::Disabled);
   }
   return icon;
 }
@@ -119,9 +167,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   stopAction_ = new QAction(
       style()->standardIcon(QStyle::SP_MediaStop), "S&top", this);
   stopAction_->setToolTip("Stop the proxy");
-  settingsAction_ = new QAction(
-      style()->standardIcon(QStyle::SP_FileDialogDetailedView),
-      "&Settings", this);
+  settingsAction_ = new QAction(settingsIcon(palette()), "&Settings", this);
   settingsAction_->setToolTip("Open settings");
 
   auto *proxyToolBar = addToolBar("Proxy");
@@ -134,6 +180,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   auto *proxyMenu = menuBar()->addMenu("&Proxy");
   proxyMenu->addAction(startAction_);
   proxyMenu->addAction(stopAction_);
+  proxyMenu->addSeparator();
+  auto *exitAction = proxyMenu->addAction("E&xit");
+  exitAction->setShortcut(QKeySequence::Quit);
+  connect(exitAction, &QAction::triggered, this, &MainWindow::quitFromTray);
 
   auto *helpMenu = menuBar()->addMenu("&Help");
   auto *aboutAction = helpMenu->addAction("&About ws2tcp-local");

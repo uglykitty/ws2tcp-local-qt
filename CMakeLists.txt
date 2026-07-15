@@ -256,7 +256,12 @@ if(WIN32)
 endif()
 
 if(APPLE)
+    set(WS2TCP_LOCAL_MACOS_ICON
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/resources/app-icon.icns")
+    set_source_files_properties("${WS2TCP_LOCAL_MACOS_ICON}" PROPERTIES
+        MACOSX_PACKAGE_LOCATION "Resources")
     list(APPEND WS2TCP_LOCAL_QT_SOURCES
+        "${WS2TCP_LOCAL_MACOS_ICON}"
         src/MacPrivilegedHelperClient.h
         src/MacPrivilegedHelperClient.mm
         src/MacSystemProxy.cpp
@@ -288,6 +293,7 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "ws2tcp-local"
         MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_ICON_FILE "app-icon.icns"
         OUTPUT_NAME "ws2tcp-local")
     target_compile_definitions(ws2tcp-local-qt PRIVATE
         WS2TCP_SYSTEM_PROXY_AVAILABLE=1)
@@ -397,6 +403,11 @@ if(APPLE)
     file(REAL_PATH "${QT_COCOA_PLUGIN}" QT_COCOA_PLUGIN_REAL_PATH)
     install(FILES "${QT_COCOA_PLUGIN_REAL_PATH}"
         DESTINATION "ws2tcp-local.app/Contents/PlugIns/platforms")
+    get_target_property(QT_MAC_STYLE_PLUGIN
+        Qt6::QMacStylePlugin IMPORTED_LOCATION)
+    file(REAL_PATH "${QT_MAC_STYLE_PLUGIN}" QT_MAC_STYLE_PLUGIN_REAL_PATH)
+    install(FILES "${QT_MAC_STYLE_PLUGIN_REAL_PATH}"
+        DESTINATION "ws2tcp-local.app/Contents/PlugIns/styles")
     install(SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/SignMacOS.cmake")
 endif()
 

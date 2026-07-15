@@ -258,6 +258,8 @@ bool restoreSavedSettings(QString *error, bool onlyIfOwned) {
   }
   const QVariantMap originals = settings.value("originals").toMap();
   const QVariantMap applied = settings.value("applied").toMap();
+  const QVariantMap originalEnabled =
+      settings.value("original_enabled").toMap();
 
   Authorization authorization;
   if (!authorization.isValid()) {
@@ -301,8 +303,10 @@ bool restoreSavedSettings(QString *error, bool onlyIfOwned) {
     }
     CFDictionaryRef current = SCNetworkProtocolGetConfiguration(protocol.get());
     auto expected = deserializeDictionary(applied.value(id).toByteArray());
-    const bool stillOwned = expected && current != nullptr &&
-                            CFEqual(current, expected.get());
+    const bool hasSavedEnabledState = originalEnabled.contains(id);
+    const bool stillOwned =
+        expected && current != nullptr && CFEqual(current, expected.get()) &&
+        (!hasSavedEnabledState || SCNetworkProtocolGetEnabled(protocol.get()));
     if (onlyIfOwned && !stillOwned) {
       continue;
     }
@@ -321,6 +325,16 @@ bool restoreSavedSettings(QString *error, bool onlyIfOwned) {
       if (error != nullptr) {
         *error = systemConfigurationError(
             "Failed to restore system proxy settings");
+      }
+      return false;
+    }
+    if (hasSavedEnabledState &&
+        !SCNetworkProtocolSetEnabled(
+            protocol.get(), originalEnabled.value(id).toBool())) {
+      settings.endGroup();
+      if (error != nullptr) {
+        *error = systemConfigurationError(
+            "Failed to restore system proxy protocol state");
       }
       return false;
     }
@@ -389,6 +403,7 @@ bool MacSystemProxy::enable(const QString &listenAddress, QString *error) {
 
   QVariantMap originals;
   QVariantMap applied;
+  QVariantMap originalEnabled;
   for (CFIndex index = 0; index < CFArrayGetCount(services.get()); ++index) {
     auto service = static_cast<SCNetworkServiceRef>(
         const_cast<void *>(CFArrayGetValueAtIndex(services.get(), index)));
@@ -425,10 +440,19 @@ bool MacSystemProxy::enable(const QString &listenAddress, QString *error) {
     }
     originals.insert(id, originalData);
     applied.insert(id, appliedData);
+    originalEnabled.insert(id, SCNetworkProtocolGetEnabled(protocol.get()));
     if (!SCNetworkProtocolSetConfiguration(protocol.get(), configuration.get())) {
       settings.endGroup();
       if (error != nullptr) {
         *error = systemConfigurationError("Failed to set system proxy settings");
+      }
+      return false;
+    }
+    if (!SCNetworkProtocolSetEnabled(protocol.get(), true)) {
+      settings.endGroup();
+      if (error != nullptr) {
+        *error = systemConfigurationError(
+            "Failed to enable system proxy protocol");
       }
       return false;
     }
@@ -443,6 +467,7 @@ bool MacSystemProxy::enable(const QString &listenAddress, QString *error) {
 
   settings.setValue("originals", originals);
   settings.setValue("applied", applied);
+  settings.setValue("original_enabled", originalEnabled);
   settings.setValue("host", host);
   settings.setValue("port", port);
   settings.setValue("active", true);

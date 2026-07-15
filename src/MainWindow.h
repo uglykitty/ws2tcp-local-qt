@@ -62,7 +62,6 @@ class MainWindow final : public QMainWindow {
   QLineEdit *customRulesEdit_ = nullptr;
   QToolButton *customRulesBrowseButton_ = nullptr;
   QComboBox *proxyModeCombo_ = nullptr;
-  QCheckBox *verifyCertificateCheck_ = nullptr;
   QAction *startAction_ = nullptr;
   QAction *stopAction_ = nullptr;
   QAction *settingsAction_ = nullptr;
@@ -81,6 +80,7 @@ class MainWindow final : public QMainWindow {
   bool allowClose_ = false;
   int bufferSize_ = 16 * 1024;
   int refreshIntervalSeconds_ = 60;
+  bool verifyCertificate_ = false;
   QString closeBehavior_ = "ask";
   QString sessionCloseBehavior_;
   QString runtimeStatus_;

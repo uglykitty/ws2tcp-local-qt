@@ -82,7 +82,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   proxyModeCombo_->addItem("auto");
   proxyModeCombo_->setCurrentText("auto");
 
-  verifyCertificateCheck_ = new QCheckBox(this);
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   systemProxyCheck_ = new QCheckBox(this);
 #endif
@@ -93,7 +92,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   form->addRow("Password", passwordRow);
   form->addRow("Custom rules", customRulesRow);
   form->addRow("Proxy mode", proxyModeCombo_);
-  form->addRow("Verify TLS certificate", verifyCertificateCheck_);
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   form->addRow("Set system proxy", systemProxyCheck_);
 #endif
@@ -330,6 +328,11 @@ void MainWindow::showSettingsDialog() {
   refreshIntervalSpin->setEnabled(!running);
   form->addRow("Rule refresh seconds", refreshIntervalSpin);
 
+  auto *verifyCertificateCheck = new QCheckBox(&dialog);
+  verifyCertificateCheck->setChecked(verifyCertificate_);
+  verifyCertificateCheck->setEnabled(!running);
+  form->addRow("Verify TLS certificate", verifyCertificateCheck);
+
   auto *closeBehaviorCombo = new QComboBox(&dialog);
   closeBehaviorCombo->addItem("Ask every time", "ask");
   closeBehaviorCombo->addItem("Minimize to tray", "tray");
@@ -350,6 +353,7 @@ void MainWindow::showSettingsDialog() {
   if (dialog.exec() == QDialog::Accepted) {
     bufferSize_ = bufferSizeSpin->value();
     refreshIntervalSeconds_ = refreshIntervalSpin->value();
+    verifyCertificate_ = verifyCertificateCheck->isChecked();
     closeBehavior_ = closeBehaviorCombo->currentData().toString();
     sessionCloseBehavior_.clear();
     saveUserSettings();
@@ -365,7 +369,6 @@ void MainWindow::updateConfigurationInputs(bool running) {
   passwordVisibilityButton_->setEnabled(editable);
   customRulesEdit_->setEnabled(editable);
   customRulesBrowseButton_->setEnabled(editable);
-  verifyCertificateCheck_->setEnabled(editable);
 }
 
 void MainWindow::showAboutDialog() {
@@ -497,7 +500,7 @@ QByteArray MainWindow::buildConfigJson() const {
   config["buffer_size"] = bufferSize_;
   config["rule_refresh_interval_secs"] = refreshIntervalSeconds_;
   config["proxy_mode"] = proxyModeCombo_->currentText();
-  config["verify_server_certificate"] = verifyCertificateCheck_->isChecked();
+  config["verify_server_certificate"] = verifyCertificate_;
 
   const QString username = usernameEdit_->text().trimmed();
   if (!username.isEmpty()) {
@@ -627,10 +630,9 @@ void MainWindow::loadUserSettings() {
     closeBehavior_ = closeBehavior;
   }
 
-  verifyCertificateCheck_->setChecked(
-      settings.value("proxy/verify_server_certificate",
-                     verifyCertificateCheck_->isChecked())
-          .toBool());
+  verifyCertificate_ =
+      settings.value("proxy/verify_server_certificate", verifyCertificate_)
+          .toBool();
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   systemProxyCheck_->setChecked(
       settings.value("proxy/set_system_proxy", false).toBool());
@@ -652,7 +654,7 @@ void MainWindow::saveUserSettings() const {
   settings.setValue("proxy/proxy_mode", proxyModeCombo_->currentText());
   settings.setValue("ui/close_behavior", closeBehavior_);
   settings.setValue("proxy/verify_server_certificate",
-                    verifyCertificateCheck_->isChecked());
+                    verifyCertificate_);
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   settings.setValue("proxy/set_system_proxy",
                     systemProxyCheck_->isChecked());

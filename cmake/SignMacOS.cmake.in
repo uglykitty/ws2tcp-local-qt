@@ -2,6 +2,8 @@ set(signing_identity "@WS2TCP_MACOS_SIGNING_IDENTITY@")
 set(app_bundle "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/ws2tcp-local.app")
 set(cocoa_plugin
     "${app_bundle}/Contents/PlugIns/platforms/libqcocoa.dylib")
+set(proxy_helper
+    "${app_bundle}/Contents/Library/HelperTools/ws2tcp-proxy-helper")
 
 set(signing_options --force --sign "${signing_identity}")
 if(NOT signing_identity STREQUAL "-")
@@ -13,6 +15,13 @@ execute_process(
     RESULT_VARIABLE plugin_codesign_result)
 if(NOT plugin_codesign_result EQUAL 0)
     message(FATAL_ERROR "Failed to sign ${cocoa_plugin}")
+endif()
+
+execute_process(
+    COMMAND /usr/bin/codesign ${signing_options} "${proxy_helper}"
+    RESULT_VARIABLE helper_codesign_result)
+if(NOT helper_codesign_result EQUAL 0)
+    message(FATAL_ERROR "Failed to sign ${proxy_helper}")
 endif()
 
 execute_process(

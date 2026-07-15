@@ -60,6 +60,60 @@ cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
 cmake --build build-release --target package
 ```
 
+### macOS signing and privileged helper
+
+The macOS app contains a privileged helper that updates system proxy settings.
+Both the app and the helper must be signed by the same Apple Developer team;
+an ad-hoc signature cannot register the helper with `SMAppService`.
+
+First confirm that macOS sees a valid code-signing identity:
+
+```bash
+security find-identity -v -p codesigning
+```
+
+An identity consists of a certificate and its matching private key. If an
+Apple Development or Developer ID certificate is present in Keychain Access
+but the command reports no valid identities, check that its private key is
+also present and install the current Apple Worldwide Developer Relations
+(WWDR) intermediate certificate from the Apple Developer certificate page.
+
+For local development, configure CMake with an **Apple Development** identity.
+Use the complete identity name printed by `security find-identity`:
+
+```bash
+cmake -S . -B build-release \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DWS2TCP_MACOS_SIGNING_IDENTITY="Apple Development: NAME (TEAM_ID)"
+cmake --build build-release
+cmake --install build-release --prefix "$PWD/target/install"
+```
+
+The install step is required: it deploys the Qt frameworks and Cocoa platform
+plugin into the app before signing the nested code, privileged helper, and
+outer bundle in the correct order. Do not distribute or install
+`build-release/ws2tcp-local.app` directly; that build-tree bundle can still
+refer to Homebrew Qt libraries and its temporary path can become part of the
+helper registration.
+
+Verify and install the resulting bundle:
+
+```bash
+codesign --verify --deep --strict --verbose=2 \
+  target/install/ws2tcp-local.app
+codesign -d --verbose=4 target/install/ws2tcp-local.app
+
+ditto target/install/ws2tcp-local.app /Applications/ws2tcp-local.app
+open /Applications/ws2tcp-local.app
+```
+
+On first use of **Set system proxy**, approve `ws2tcp-local` in **System
+Settings > General > Login Items > Allow in the Background**, then retry the
+operation. Always run the installed `/Applications` copy when testing the
+privileged helper. Rebuilding, re-signing, or moving an already registered app
+changes its code identity or path and can require the helper to be registered
+and approved again.
+
 Public releases should sign the app with a **Developer ID Application**
 certificate, enable the hardened runtime and secure timestamp, and submit the
 resulting DMG with `xcrun notarytool` before stapling its notarization ticket.

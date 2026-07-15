@@ -1,4 +1,5 @@
 #include "MacSystemProxy.h"
+#include "MacPrivilegedHelperClient.h"
 
 #include <QByteArray>
 #include <QSettings>
@@ -474,6 +475,11 @@ bool MacSystemProxy::enable(const QString &listenAddress, QString *error) {
   settings.sync();
 
   if (!commitChanges(preferences.get(), error)) {
+    settings.endGroup();
+    restoreSavedSettings(nullptr, false);
+    return false;
+  }
+  if (!MacPrivilegedHelperClient::refreshProxyStates(error)) {
     settings.endGroup();
     restoreSavedSettings(nullptr, false);
     return false;

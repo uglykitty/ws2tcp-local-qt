@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.21)
 
 project(ws2tcp-local-qt VERSION 0.1.2 LANGUAGES CXX)
 
+if(APPLE)
+    enable_language(OBJCXX)
+endif()
+
 include(GNUInstallDirs)
 include(FetchContent)
 
@@ -253,6 +257,8 @@ endif()
 
 if(APPLE)
     list(APPEND WS2TCP_LOCAL_QT_SOURCES
+        src/MacPrivilegedHelperClient.h
+        src/MacPrivilegedHelperClient.mm
         src/MacSystemProxy.cpp
         src/MacSystemProxy.h)
 endif()
@@ -261,6 +267,21 @@ add_executable(ws2tcp-local-qt
     ${WS2TCP_LOCAL_QT_SOURCES})
 
 if(APPLE)
+    set(WS2TCP_MACOS_SIGNING_IDENTITY "-" CACHE STRING
+        "Developer ID Application identity, or '-' for an ad-hoc signature")
+    find_library(SYSTEM_CONFIGURATION_FRAMEWORK SystemConfiguration REQUIRED)
+    find_library(SECURITY_FRAMEWORK Security REQUIRED)
+    find_library(CORE_FOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
+    find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
+    find_library(SERVICE_MANAGEMENT_FRAMEWORK ServiceManagement REQUIRED)
+
+    add_executable(ws2tcp-proxy-helper helper/MacProxyHelper.cpp)
+    set_source_files_properties(helper/MacProxyHelper.cpp PROPERTIES
+        LANGUAGE OBJCXX)
+    target_link_libraries(ws2tcp-proxy-helper PRIVATE
+        "${SYSTEM_CONFIGURATION_FRAMEWORK}"
+        "${CORE_FOUNDATION_FRAMEWORK}")
+
     set_target_properties(ws2tcp-local-qt PROPERTIES
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.uglykitty.ws2tcp-local"
@@ -268,18 +289,35 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
         OUTPUT_NAME "ws2tcp-local")
-    find_library(SYSTEM_CONFIGURATION_FRAMEWORK SystemConfiguration REQUIRED)
-    find_library(SECURITY_FRAMEWORK Security REQUIRED)
     target_compile_definitions(ws2tcp-local-qt PRIVATE
         WS2TCP_SYSTEM_PROXY_AVAILABLE=1)
     target_link_libraries(ws2tcp-local-qt PRIVATE
         "${SYSTEM_CONFIGURATION_FRAMEWORK}"
-        "${SECURITY_FRAMEWORK}")
+        "${SECURITY_FRAMEWORK}"
+        "${FOUNDATION_FRAMEWORK}"
+        "${SERVICE_MANAGEMENT_FRAMEWORK}")
+    add_dependencies(ws2tcp-local-qt ws2tcp-proxy-helper)
+    add_custom_command(TARGET ws2tcp-local-qt POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "$<TARGET_BUNDLE_DIR:ws2tcp-local-qt>/Contents/Library/HelperTools"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "$<TARGET_BUNDLE_DIR:ws2tcp-local-qt>/Contents/Library/LaunchDaemons"
+        COMMAND "${CMAKE_COMMAND}" -E copy
+            "$<TARGET_FILE:ws2tcp-proxy-helper>"
+            "$<TARGET_BUNDLE_DIR:ws2tcp-local-qt>/Contents/Library/HelperTools/ws2tcp-proxy-helper"
+        COMMAND "${CMAKE_COMMAND}" -E copy
+            "${CMAKE_CURRENT_SOURCE_DIR}/helper/com.uglykitty.ws2tcp-local.proxy-helper.plist"
+            "$<TARGET_BUNDLE_DIR:ws2tcp-local-qt>/Contents/Library/LaunchDaemons/com.uglykitty.ws2tcp-local.proxy-helper.plist"
+        COMMAND /usr/bin/codesign --force
+            --sign "${WS2TCP_MACOS_SIGNING_IDENTITY}"
+            "$<TARGET_BUNDLE_DIR:ws2tcp-local-qt>/Contents/Library/HelperTools/ws2tcp-proxy-helper"
+        COMMAND /usr/bin/codesign --force
+            --sign "${WS2TCP_MACOS_SIGNING_IDENTITY}"
+            "$<TARGET_BUNDLE_DIR:ws2tcp-local-qt>"
+        VERBATIM)
 endif()
 
 if(APPLE)
-    set(WS2TCP_MACOS_SIGNING_IDENTITY "-" CACHE STRING
-        "Developer ID Application identity, or '-' for an ad-hoc signature")
     set(WS2TCP_MACOS_DEPLOY_OPTIONS)
     if(NOT WS2TCP_MACOS_SIGNING_IDENTITY STREQUAL "-")
         list(APPEND WS2TCP_MACOS_DEPLOY_OPTIONS

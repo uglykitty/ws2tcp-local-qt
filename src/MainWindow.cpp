@@ -50,6 +50,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   auto *central = new QWidget(this);
   auto *root = new QVBoxLayout(central);
   auto *form = new QFormLayout();
+  form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 
   listenEdit_ = new QLineEdit("127.0.0.1:3128", this);
   gatewayEdit_ =

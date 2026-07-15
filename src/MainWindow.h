@@ -80,7 +80,7 @@ class MainWindow final : public QMainWindow {
   bool allowClose_ = false;
   int bufferSize_ = 16 * 1024;
   int refreshIntervalSeconds_ = 60;
-  bool verifyCertificate_ = false;
+  bool verifyCertificate_ = true;
   QString closeBehavior_ = "ask";
   QString sessionCloseBehavior_;
   QString runtimeStatus_;

@@ -51,8 +51,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   auto *root = new QVBoxLayout(central);
   auto *form = new QFormLayout();
 
-  listenEdit_ = new QLineEdit("127.0.0.1:8000", this);
-  gatewayEdit_ = new QLineEdit(this);
+  listenEdit_ = new QLineEdit("127.0.0.1:3128", this);
+  gatewayEdit_ =
+      new QLineEdit("wss://www.wangguofang.net/websocat", this);
   usernameEdit_ = new QLineEdit(this);
   passwordEdit_ = new QLineEdit(this);
   passwordEdit_->setEchoMode(QLineEdit::Password);
@@ -584,7 +585,8 @@ void MainWindow::loadUserSettings() {
 
   listenEdit_->setText(
       settings.value("proxy/listen", listenEdit_->text()).toString());
-  gatewayEdit_->setText(settings.value("proxy/gateway").toString());
+  gatewayEdit_->setText(
+      settings.value("proxy/gateway", gatewayEdit_->text()).toString());
   if (settings.contains("proxy/username") ||
       settings.contains("proxy/password")) {
     usernameEdit_->setText(settings.value("proxy/username").toString());

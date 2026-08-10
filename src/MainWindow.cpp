@@ -441,10 +441,15 @@ void MainWindow::toggleWindowVisibility() {
   if (isVisible()) {
     hide();
   } else {
-    showNormal();
-    raise();
-    activateWindow();
+    showAndActivate();
   }
+  updateTrayActions();
+}
+
+void MainWindow::showAndActivate() {
+  showNormal();
+  raise();
+  activateWindow();
   updateTrayActions();
 }
 

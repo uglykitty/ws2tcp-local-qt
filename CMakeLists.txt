@@ -14,7 +14,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Network Widgets)
 
 set(WS2TCP_LOCAL_CLI_SOURCE_DIR
     "${CMAKE_CURRENT_LIST_DIR}/../ws2tcp-local"
@@ -349,7 +349,10 @@ if(WIN32)
         WIN32_EXECUTABLE "$<NOT:$<CONFIG:Debug>>")
 endif()
 
-target_link_libraries(ws2tcp-local-qt PRIVATE Qt6::Widgets ws2tcp_local_ffi)
+target_link_libraries(ws2tcp-local-qt PRIVATE
+    Qt6::Network
+    Qt6::Widgets
+    ws2tcp_local_ffi)
 
 if(TARGET ws2tcp_local_ffi_cargo_build)
     add_dependencies(ws2tcp-local-qt ws2tcp_local_ffi_cargo_build)

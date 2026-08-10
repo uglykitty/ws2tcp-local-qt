@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(ws2tcp-local-qt VERSION 0.1.2 LANGUAGES CXX)
+project(ws2tcp-local-qt VERSION 0.1.3 LANGUAGES CXX)
 
 if(APPLE)
     enable_language(OBJCXX)
@@ -44,7 +44,7 @@ set(WS2TCP_LOCAL_FFI_SOURCE_DIR
     "${CMAKE_CURRENT_LIST_DIR}/../ws2tcp-local-ffi"
     CACHE PATH "Path to the ws2tcp-local-ffi Rust crate")
 set(WS2TCP_LOCAL_FFI_CRATE_VERSION
-    "${PROJECT_VERSION}"
+    "0.1.2"
     CACHE STRING "ws2tcp-local-ffi crate version to fetch from crates.io when the local crate is missing")
 set(WS2TCP_LOCAL_FFI_INCLUDE_DIR
     "${CMAKE_CURRENT_LIST_DIR}/../ws2tcp-local-ffi/include"

@@ -41,9 +41,10 @@ cmake --build build-release
 
 On Windows, CMake also creates a `package` target backed by CPack and NSIS.
 The installer contains both `ws2tcp-local-qt.exe` and the Corrosion-built
-`ws2tcp-local.exe`. Build it with a release configuration to produce the
-installer in the build directory. The installer offers options to create a
-desktop shortcut and add the application directory to `PATH`. NSIS must be
+`ws2tcp-local.exe`, along with the MSVC runtime DLLs required to run them on a
+clean Windows installation. Build it with a release configuration to produce
+the installer in the build directory. The installer offers options to create
+a desktop shortcut and add the application directory to `PATH`. NSIS must be
 installed and available to CPack:
 
 ```powershell

@@ -9,6 +9,15 @@ endif()
 include(GNUInstallDirs)
 include(FetchContent)
 
+if(MSVC)
+    # RUNTIME_DEPENDENCY_SET excludes DLLs resolved from System32 below.  The
+    # MSVC redistributable is available there on GitHub-hosted runners, so use
+    # CMake's toolchain-aware discovery to bundle it explicitly instead of
+    # requiring users to install the redistributable separately.
+    set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP TRUE)
+    include(InstallRequiredSystemLibraries)
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
@@ -377,6 +386,11 @@ install(TARGETS ws2tcp-local-qt
 if(NOT APPLE)
     install(PROGRAMS "$<TARGET_FILE:ws2tcp-local>"
         DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
+    if(MSVC)
+        install(PROGRAMS ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS}
+            DESTINATION "${CMAKE_INSTALL_BINDIR}")
+    endif()
 
     install(FILES data/ws2tcp-local-qt.desktop
         DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")

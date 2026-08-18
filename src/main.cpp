@@ -34,6 +34,7 @@ int main(int argc, char *argv[]) {
   QApplication app(argc, argv);
   QCoreApplication::setOrganizationName("ws2tcp-local");
   QCoreApplication::setApplicationName("ws2tcp-local-qt");
+  QCoreApplication::setApplicationVersion(WS2TCP_LOCAL_VERSION);
   QApplication::setQuitOnLastWindowClosed(false);
 
   const QString serverName = singleInstanceServerName();

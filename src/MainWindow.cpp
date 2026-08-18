@@ -2,6 +2,7 @@
 
 #include <QByteArray>
 #include <QApplication>
+#include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFileDialog>
@@ -428,15 +429,18 @@ void MainWindow::updateConfigurationInputs(bool running) {
 void MainWindow::showAboutDialog() {
   QMessageBox::about(
       this, "About ws2tcp-local",
-      "<h3>ws2tcp-local</h3>"
-      "<p>A Qt GUI for the ws2tcp-local WebSocket-to-TCP proxy.</p>"
-      "<p><b>Repository:</b> "
-      "<a href=\"https://github.com/uglykitty/ws2tcp-local-qt\">"
-      "github.com/uglykitty/ws2tcp-local-qt</a><br>"
-      "<b>Author:</b> Guofang Wang<br>"
-      "<b>Email:</b> "
-      "<a href=\"mailto:lazysoez@gmail.com\">"
-      "lazysoez@gmail.com</a></p>");
+      QStringLiteral(
+          "<h3>ws2tcp-local</h3>"
+          "<p><b>Version:</b> %1</p>"
+          "<p>A Qt GUI for the ws2tcp-local WebSocket-to-TCP proxy.</p>"
+          "<p><b>Repository:</b> "
+          "<a href=\"https://github.com/uglykitty/ws2tcp-local-qt\">"
+          "github.com/uglykitty/ws2tcp-local-qt</a><br>"
+          "<b>Author:</b> Guofang Wang<br>"
+          "<b>Email:</b> "
+          "<a href=\"mailto:lazysoez@gmail.com\">"
+          "lazysoez@gmail.com</a></p>")
+          .arg(QCoreApplication::applicationVersion().toHtmlEscaped()));
 }
 
 void MainWindow::toggleWindowVisibility() {

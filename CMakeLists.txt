@@ -280,6 +280,9 @@ endif()
 add_executable(ws2tcp-local-qt
     ${WS2TCP_LOCAL_QT_SOURCES})
 
+target_compile_definitions(ws2tcp-local-qt PRIVATE
+    WS2TCP_LOCAL_VERSION="${PROJECT_VERSION}")
+
 if(APPLE)
     set(WS2TCP_MACOS_SIGNING_IDENTITY "-" CACHE STRING
         "Developer ID Application identity, or '-' for an ad-hoc signature")

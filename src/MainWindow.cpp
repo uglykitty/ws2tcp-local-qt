@@ -35,6 +35,8 @@
 
 namespace {
 
+constexpr auto kDefaultListenAddress = "127.0.0.1:3128";
+
 QIcon applicationIcon() {
   QIcon icon(":/icons/app-icon.png");
   if (icon.isNull()) {
@@ -100,7 +102,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   auto *form = new QFormLayout();
   form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 
-  listenEdit_ = new QLineEdit("127.0.0.1:3128", this);
+  listenEdit_ = new QLineEdit(kDefaultListenAddress, this);
   gatewayEdit_ =
       new QLineEdit("wss://www.wangguofang.net/websocat", this);
   usernameEdit_ = new QLineEdit(this);

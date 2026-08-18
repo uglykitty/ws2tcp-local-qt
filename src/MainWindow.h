@@ -21,6 +21,7 @@ class MainWindow final : public QMainWindow {
  public:
   explicit MainWindow(QWidget *parent = nullptr);
   ~MainWindow() override;
+  bool clearUserSettingsAndQuit();
   void showAndActivate();
 
  private slots:
@@ -79,6 +80,7 @@ class MainWindow final : public QMainWindow {
   QAction *quitAction_ = nullptr;
   bool wasRunning_ = false;
   bool allowClose_ = false;
+  bool userSettingsCleared_ = false;
   int bufferSize_ = 16 * 1024;
   int refreshIntervalSeconds_ = 60;
   bool verifyCertificate_ = true;

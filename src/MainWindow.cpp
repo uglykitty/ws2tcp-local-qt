@@ -246,7 +246,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 }
 
 MainWindow::~MainWindow() {
-  saveUserSettings();
+  if (!userSettingsCleared_) {
+    saveUserSettings();
+  }
 
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   SystemProxy::disable(nullptr);
@@ -256,6 +258,38 @@ MainWindow::~MainWindow() {
     ws2tcp_stop(handle_);
     ws2tcp_handle_free(handle_);
   }
+}
+
+bool MainWindow::clearUserSettingsAndQuit() {
+  if (handle_ != nullptr &&
+      ws2tcp_status(handle_) == WS2TCP_STATUS_RUNNING) {
+    stopProxy();
+    if (ws2tcp_status(handle_) == WS2TCP_STATUS_RUNNING) {
+      return false;
+    }
+  }
+
+#ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
+  QString error;
+  if (!SystemProxy::disable(&error)) {
+    showError("Unable to restore the system proxy: " + error);
+    return false;
+  }
+  systemProxyActive_ = false;
+#endif
+
+  QSettings settings;
+  settings.clear();
+  settings.sync();
+  if (settings.status() != QSettings::NoError) {
+    showError("Unable to clear user settings");
+    return false;
+  }
+
+  userSettingsCleared_ = true;
+  allowClose_ = true;
+  QApplication::quit();
+  return true;
 }
 
 void MainWindow::startProxy() {

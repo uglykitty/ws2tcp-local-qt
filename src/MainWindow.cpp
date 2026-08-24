@@ -728,12 +728,7 @@ void MainWindow::loadUserSettings() {
     closeBehavior_ = closeBehavior;
   }
 
-  if (settings.contains("proxy/insecure")) {
-    insecure_ = settings.value("proxy/insecure").toBool();
-  } else if (settings.contains("proxy/verify_server_certificate")) {
-    // Migrate the former, inverse setting.
-    insecure_ = !settings.value("proxy/verify_server_certificate").toBool();
-  }
+  insecure_ = settings.value("proxy/insecure", insecure_).toBool();
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   systemProxyCheck_->setChecked(
       settings.value("proxy/set_system_proxy", false).toBool());
@@ -755,7 +750,6 @@ void MainWindow::saveUserSettings() const {
   settings.setValue("proxy/proxy_mode", proxyModeCombo_->currentText());
   settings.setValue("ui/close_behavior", closeBehavior_);
   settings.setValue("proxy/insecure", insecure_);
-  settings.remove("proxy/verify_server_certificate");
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   settings.setValue("proxy/set_system_proxy",
                     systemProxyCheck_->isChecked());

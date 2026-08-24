@@ -83,7 +83,7 @@ class MainWindow final : public QMainWindow {
   bool userSettingsCleared_ = false;
   int bufferSize_ = 16 * 1024;
   int refreshIntervalSeconds_ = 60;
-  bool verifyCertificate_ = true;
+  bool insecure_ = false;
   QString closeBehavior_ = "ask";
   QString sessionCloseBehavior_;
   QString runtimeStatus_;

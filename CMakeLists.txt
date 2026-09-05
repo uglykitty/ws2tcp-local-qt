@@ -53,7 +53,7 @@ set(WS2TCP_LOCAL_FFI_SOURCE_DIR
     "${CMAKE_CURRENT_LIST_DIR}/../ws2tcp-local-ffi"
     CACHE PATH "Path to the ws2tcp-local-ffi Rust crate")
 set(WS2TCP_LOCAL_FFI_CRATE_VERSION
-    "0.1.3"
+    "0.1.4"
     CACHE STRING "ws2tcp-local-ffi crate version to fetch from crates.io when the local crate is missing")
 set(WS2TCP_LOCAL_FFI_INCLUDE_DIR
     "${CMAKE_CURRENT_LIST_DIR}/../ws2tcp-local-ffi/include"

@@ -104,6 +104,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 
   listenEdit_ = new QLineEdit(kDefaultListenAddress, this);
+  socksListenEdit_ = new QLineEdit(this);
+  socksListenEdit_->setPlaceholderText(
+      "127.0.0.1:1080 (optional, blank disables SOCKS5)");
   gatewayEdit_ =
       new QLineEdit("wss://www.wangguofang.net/websocat", this);
   usernameEdit_ = new QLineEdit(this);
@@ -140,6 +143,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 #endif
 
   form->addRow("Listen", listenEdit_);
+  form->addRow("SOCKS5 listen", socksListenEdit_);
   form->addRow("Gateway", gatewayEdit_);
   form->addRow("Username", usernameEdit_);
   form->addRow("Password", passwordRow);
@@ -452,6 +456,7 @@ void MainWindow::showSettingsDialog() {
 void MainWindow::updateConfigurationInputs(bool running) {
   const bool editable = !running;
   listenEdit_->setEnabled(editable);
+  socksListenEdit_->setEnabled(editable);
   gatewayEdit_->setEnabled(editable);
   usernameEdit_->setEnabled(editable);
   passwordEdit_->setEnabled(editable);
@@ -593,6 +598,10 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 QByteArray MainWindow::buildConfigJson() const {
   QJsonObject config;
   config["listen"] = listenEdit_->text().trimmed();
+  const QString socksListen = socksListenEdit_->text().trimmed();
+  if (!socksListen.isEmpty()) {
+    config["socks_listen"] = socksListen;
+  }
   config["gateway"] = gatewayEdit_->text().trimmed();
   config["buffer_size"] = bufferSize_;
   config["rule_refresh_interval_secs"] = refreshIntervalSeconds_;
@@ -681,6 +690,9 @@ void MainWindow::loadUserSettings() {
 
   listenEdit_->setText(
       settings.value("proxy/listen", listenEdit_->text()).toString());
+  socksListenEdit_->setText(
+      settings.value("proxy/socks_listen", socksListenEdit_->text())
+          .toString());
   gatewayEdit_->setText(
       settings.value("proxy/gateway", gatewayEdit_->text()).toString());
   if (settings.contains("proxy/username") ||
@@ -739,6 +751,7 @@ void MainWindow::saveUserSettings() const {
   QSettings settings;
 
   settings.setValue("proxy/listen", listenEdit_->text());
+  settings.setValue("proxy/socks_listen", socksListenEdit_->text());
   settings.setValue("proxy/gateway", gatewayEdit_->text());
   settings.setValue("proxy/username", usernameEdit_->text());
   settings.setValue("proxy/password", passwordEdit_->text());

@@ -57,6 +57,7 @@ class MainWindow final : public QMainWindow {
 
   Ws2TcpHandle *handle_ = nullptr;
   QLineEdit *listenEdit_ = nullptr;
+  QLineEdit *socksListenEdit_ = nullptr;
   QLineEdit *gatewayEdit_ = nullptr;
   QLineEdit *usernameEdit_ = nullptr;
   QLineEdit *passwordEdit_ = nullptr;

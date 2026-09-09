@@ -224,6 +224,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           MACOS_JOB_RESULT: ${{ needs.macos.result }}
         run: |
           set -euo pipefail

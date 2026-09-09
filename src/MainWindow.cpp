@@ -3,6 +3,7 @@
 #include <QByteArray>
 #include <QApplication>
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFileDialog>
@@ -224,7 +225,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
       ws2tcp_set_log_callback(&MainWindow::handleRustLog, this,
                               "ws2tcp_local=info,ws2tcp_local_ffi=info");
   if (logRc != WS2TCP_OK) {
-    logView_->appendPlainText("Failed to initialize Rust log callback");
+    logMessage("Failed to initialize Rust log callback");
   }
 
   statusTimer_ = new QTimer(this);
@@ -312,7 +313,7 @@ void MainWindow::startProxy() {
     saveUserSettings();
     updateConfigurationInputs(true);
     updateRuntimeStatus("Starting " + listenEdit_->text().trimmed());
-    logView_->appendPlainText("Started");
+    logMessage("Started");
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
     if (systemProxyCheck_->isChecked()) {
       setSystemProxyEnabled(true);
@@ -339,7 +340,7 @@ void MainWindow::stopProxy() {
     saveUserSettings();
     updateConfigurationInputs(false);
     updateRuntimeStatus("Stopped");
-    logView_->appendPlainText("Stopped");
+    logMessage("Stopped");
   } else {
     appendError("Stop failed");
   }
@@ -357,7 +358,7 @@ void MainWindow::updateProxyMode(const QString &mode) {
   const QByteArray modeUtf8 = mode.toUtf8();
   const int rc = ws2tcp_set_proxy_mode(handle_, modeUtf8.constData());
   if (rc == WS2TCP_OK) {
-    logView_->appendPlainText("Proxy mode changed to " + mode);
+    logMessage("Proxy mode changed to " + mode);
   } else {
     appendError("Failed to change proxy mode");
   }
@@ -386,7 +387,7 @@ void MainWindow::refreshStatus() {
         handle_ != nullptr ? QString::fromUtf8(ws2tcp_last_error(handle_))
                            : QString();
     if (!error.isEmpty()) {
-      logView_->appendPlainText("Proxy stopped with error: " + error);
+      logMessage("Proxy stopped with error: " + error);
       updateRuntimeStatus("Stopped with error");
     } else {
       updateRuntimeStatus("Stopped");
@@ -396,8 +397,14 @@ void MainWindow::refreshStatus() {
 }
 
 void MainWindow::appendLog(QString message) {
-  logView_->appendPlainText(message);
+  logMessage(message);
   updateRuntimeStatusFromLog(message);
+}
+
+void MainWindow::logMessage(const QString &message) {
+  const QString timestamp =
+      QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+  logView_->appendPlainText(QString("[%1] %2").arg(timestamp, message));
 }
 
 void MainWindow::showSettingsDialog() {
@@ -530,12 +537,11 @@ void MainWindow::setSystemProxyEnabled(bool enabled) {
     }
     const QSignalBlocker blocker(systemProxyCheck_);
     systemProxyCheck_->setChecked(systemProxyActive_);
-    logView_->appendPlainText("System proxy error: " + error);
+    logMessage("System proxy error: " + error);
     showError("Failed to update system proxy: " + error);
   } else {
     systemProxyActive_ = enabled;
-    logView_->appendPlainText(enabled ? "System proxy enabled"
-                                      : "System proxy disabled");
+    logMessage(enabled ? "System proxy enabled" : "System proxy disabled");
   }
   updateTrayActions();
 }
@@ -621,7 +627,7 @@ QByteArray MainWindow::buildConfigJson() const {
 
 void MainWindow::setupTrayIcon() {
   if (!QSystemTrayIcon::isSystemTrayAvailable()) {
-    logView_->appendPlainText("System tray is not available");
+    logMessage("System tray is not available");
     return;
   }
 
@@ -772,7 +778,7 @@ void MainWindow::saveUserSettings() const {
 void MainWindow::appendError(const QString &prefix) {
   const char *error = ws2tcp_last_error(handle_);
   const QString message = prefix + ": " + QString::fromUtf8(error);
-  logView_->appendPlainText(message);
+  logMessage(message);
   showError(message);
 }
 

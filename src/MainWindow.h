@@ -51,6 +51,7 @@ class MainWindow final : public QMainWindow {
   void saveUserSettings() const;
   void appendError(const QString &prefix);
   void showError(const QString &message);
+  void logMessage(const QString &message);
   void updateRuntimeStatus(const QString &message);
   void updateRuntimeStatusFromLog(const QString &message);
   static void handleRustLog(const char *message, void *userData);

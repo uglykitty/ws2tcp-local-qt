@@ -209,6 +209,7 @@ jobs:
     needs:
       - windows
       - macos
+    if: ${{ !cancelled() && needs.windows.result == 'success' }}
     permissions:
       contents: write
 
@@ -223,14 +224,18 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          MACOS_JOB_RESULT: ${{ needs.macos.result }}
         run: |
           set -euo pipefail
           mapfile -t packages < <(find dist -maxdepth 1 -type f \
             \( -name '*.exe' -o -name '*.dmg' \) -print | sort)
-          if [[ ${#packages[@]} -ne 2 ]]; then
-            echo "Expected one Windows installer and one macOS DMG" >&2
+          if [[ ! " ${packages[*]} " == *".exe "* ]]; then
+            echo "Expected at least the Windows installer" >&2
             find dist -maxdepth 2 -type f -print >&2
             exit 1
+          fi
+          if [[ "$MACOS_JOB_RESULT" != "success" ]]; then
+            echo "::warning::macOS job did not succeed ($MACOS_JOB_RESULT); publishing Windows installer only"
           fi
 
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then

@@ -108,7 +108,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   socksListenEdit_->setPlaceholderText(
       "127.0.0.1:1080 (optional, blank disables SOCKS5)");
   gatewayEdit_ =
-      new QLineEdit("wss://www.wangguofang.net/websocat", this);
+      new QLineEdit("wss://wangguofang.net/tunnel", this);
   usernameEdit_ = new QLineEdit(this);
   passwordEdit_ = new QLineEdit(this);
   passwordEdit_->setEchoMode(QLineEdit::Password);

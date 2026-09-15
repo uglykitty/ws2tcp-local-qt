@@ -5,6 +5,12 @@ All notable changes to this project are documented here, generated with
 commit messages. Commits made before this file existed are grouped
 best-effort under "Other".
 <!-- git-cliff: end of header -->
+## [0.1.18] - 2026-09-15
+
+### 🚀 Features
+
+- *(wsl)* Add WSL menu with mirrored-networking prompt and CLI installers
+
 ## [0.1.17] - 2026-09-15
 
 ### 🐛 Bug Fixes

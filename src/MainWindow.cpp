@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 
 #include <QByteArray>
+#include <QActionGroup>
 #include <QApplication>
 #include <QCoreApplication>
 #include <QDateTime>
@@ -107,16 +108,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   listenEdit_ = new QLineEdit(kDefaultListenAddress, this);
   socksListenEdit_ = new QLineEdit(this);
   socksListenEdit_->setPlaceholderText(
-      "127.0.0.1:1080 (optional, blank disables SOCKS5)");
+      tr("127.0.0.1:1080 (optional, blank disables SOCKS5)"));
   gatewayEdit_ =
       new QLineEdit("wss://wangguofang.net/tunnel", this);
   usernameEdit_ = new QLineEdit(this);
   passwordEdit_ = new QLineEdit(this);
   passwordEdit_->setEchoMode(QLineEdit::Password);
   passwordVisibilityButton_ = new QToolButton(this);
-  passwordVisibilityButton_->setText("Show");
+  passwordVisibilityButton_->setText(tr("Show"));
   passwordVisibilityButton_->setCheckable(true);
-  passwordVisibilityButton_->setToolTip("Show password");
+  passwordVisibilityButton_->setToolTip(tr("Show password"));
 
   auto *passwordRow = new QWidget(this);
   auto *passwordLayout = new QHBoxLayout(passwordRow);
@@ -125,8 +126,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   passwordLayout->addWidget(passwordVisibilityButton_);
   customRulesEdit_ = new QLineEdit(this);
   customRulesBrowseButton_ = new QToolButton(this);
-  customRulesBrowseButton_->setText("Browse...");
-  customRulesBrowseButton_->setToolTip("Select custom rules file");
+  customRulesBrowseButton_->setText(tr("Browse..."));
+  customRulesBrowseButton_->setToolTip(tr("Select custom rules file"));
 
   auto *customRulesRow = new QWidget(this);
   auto *customRulesLayout = new QHBoxLayout(customRulesRow);
@@ -143,15 +144,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   systemProxyCheck_ = new QCheckBox(this);
 #endif
 
-  form->addRow("Listen", listenEdit_);
-  form->addRow("SOCKS5 listen", socksListenEdit_);
-  form->addRow("Gateway", gatewayEdit_);
-  form->addRow("Username", usernameEdit_);
-  form->addRow("Password", passwordRow);
-  form->addRow("Custom rules", customRulesRow);
-  form->addRow("Proxy mode", proxyModeCombo_);
+  form->addRow(tr("Listen"), listenEdit_);
+  form->addRow(tr("SOCKS5 listen"), socksListenEdit_);
+  form->addRow(tr("Gateway"), gatewayEdit_);
+  form->addRow(tr("Username"), usernameEdit_);
+  form->addRow(tr("Password"), passwordRow);
+  form->addRow(tr("Custom rules"), customRulesRow);
+  form->addRow(tr("Proxy mode"), proxyModeCombo_);
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
-  form->addRow("Set system proxy", systemProxyCheck_);
+  form->addRow(tr("Set system proxy"), systemProxyCheck_);
 #endif
 
   logView_ = new QPlainTextEdit(this);
@@ -170,31 +171,61 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   resize(720, 520);
 
   startAction_ = new QAction(
-      style()->standardIcon(QStyle::SP_MediaPlay), "&Start", this);
-  startAction_->setToolTip("Start the proxy");
+      style()->standardIcon(QStyle::SP_MediaPlay), tr("&Start"), this);
+  startAction_->setToolTip(tr("Start the proxy"));
   stopAction_ = new QAction(
-      style()->standardIcon(QStyle::SP_MediaStop), "S&top", this);
-  stopAction_->setToolTip("Stop the proxy");
-  settingsAction_ = new QAction(settingsIcon(palette()), "&Settings", this);
-  settingsAction_->setToolTip("Open settings");
+      style()->standardIcon(QStyle::SP_MediaStop), tr("S&top"), this);
+  stopAction_->setToolTip(tr("Stop the proxy"));
+  settingsAction_ = new QAction(settingsIcon(palette()), tr("&Settings"), this);
+  settingsAction_->setToolTip(tr("Open settings"));
 
-  auto *proxyToolBar = addToolBar("Proxy");
+  auto *proxyToolBar = addToolBar(tr("Proxy"));
   proxyToolBar->setObjectName("proxyToolBar");
   proxyToolBar->addAction(startAction_);
   proxyToolBar->addAction(stopAction_);
   proxyToolBar->addSeparator();
   proxyToolBar->addAction(settingsAction_);
 
-  auto *proxyMenu = menuBar()->addMenu("&Proxy");
+  auto *proxyMenu = menuBar()->addMenu(tr("&Proxy"));
   proxyMenu->addAction(startAction_);
   proxyMenu->addAction(stopAction_);
   proxyMenu->addSeparator();
-  auto *exitAction = proxyMenu->addAction("E&xit");
+  auto *exitAction = proxyMenu->addAction(tr("E&xit"));
   exitAction->setShortcut(QKeySequence::Quit);
   connect(exitAction, &QAction::triggered, this, &MainWindow::quitFromTray);
 
-  auto *helpMenu = menuBar()->addMenu("&Help");
-  auto *aboutAction = helpMenu->addAction("&About ws2tcp-local");
+  // Each language's name is shown in its own script, not translated, so a
+  // user can find their language even if the current UI text is unreadable
+  // to them.
+  auto *languageMenu = menuBar()->addMenu(tr("&Language"));
+  auto *languageGroup = new QActionGroup(this);
+  languageGroup->setExclusive(true);
+  auto *englishLanguageAction =
+      languageMenu->addAction(QStringLiteral("English"));
+  englishLanguageAction->setCheckable(true);
+  englishLanguageAction->setData("en_US");
+  languageGroup->addAction(englishLanguageAction);
+  auto *chineseLanguageAction =
+      languageMenu->addAction(QStringLiteral(u"简体中文"));
+  chineseLanguageAction->setCheckable(true);
+  chineseLanguageAction->setData("zh_CN");
+  languageGroup->addAction(chineseLanguageAction);
+  connect(languageGroup, &QActionGroup::triggered, this,
+          [this](QAction *action) {
+            const QString newLanguage = action->data().toString();
+            if (newLanguage == language_) {
+              return;
+            }
+            language_ = newLanguage;
+            saveUserSettings();
+            QMessageBox::information(
+                this, tr("Settings"),
+                tr("The language change will take effect after you restart "
+                   "ws2tcp-local."));
+          });
+
+  auto *helpMenu = menuBar()->addMenu(tr("&Help"));
+  auto *aboutAction = helpMenu->addAction(tr("&About ws2tcp-local"));
   connect(aboutAction, &QAction::triggered, this,
           &MainWindow::showAboutDialog);
 
@@ -206,9 +237,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
           [this](bool visible) {
             passwordEdit_->setEchoMode(visible ? QLineEdit::Normal
                                                : QLineEdit::Password);
-            passwordVisibilityButton_->setText(visible ? "Hide" : "Show");
-            passwordVisibilityButton_->setToolTip(visible ? "Hide password"
-                                                          : "Show password");
+            passwordVisibilityButton_->setText(visible ? tr("Hide")
+                                                       : tr("Show"));
+            passwordVisibilityButton_->setToolTip(
+                visible ? tr("Hide password") : tr("Show password"));
           });
   connect(customRulesBrowseButton_, &QToolButton::clicked, this, [this]() {
     QString initialPath = customRulesEdit_->text().trimmed();
@@ -216,7 +248,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
       initialPath = QFileInfo(initialPath).absolutePath();
     }
     const QString filePath = QFileDialog::getOpenFileName(
-        this, "Select custom rules file", initialPath, "All files (*)");
+        this, tr("Select custom rules file"), initialPath,
+        tr("All files (*)"));
     if (!filePath.isEmpty()) {
       customRulesEdit_->setText(filePath);
     }
@@ -225,7 +258,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
       ws2tcp_set_log_callback(&MainWindow::handleRustLog, this,
                               "ws2tcp_local=info,ws2tcp_local_ffi=info");
   if (logRc != WS2TCP_OK) {
-    logMessage("Failed to initialize Rust log callback");
+    logMessage(tr("Failed to initialize Rust log callback"));
   }
 
   statusTimer_ = new QTimer(this);
@@ -234,12 +267,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   statusTimer_->start();
 
   if (handle_ == nullptr) {
-    showError("Failed to create ws2tcp handle");
+    showError(tr("Failed to create ws2tcp handle"));
     startAction_->setEnabled(false);
     stopAction_->setEnabled(false);
   }
 
   loadUserSettings();
+  (language_ == "zh_CN" ? chineseLanguageAction : englishLanguageAction)
+      ->setChecked(true);
   connect(proxyModeCombo_, &QComboBox::currentTextChanged, this,
           &MainWindow::updateProxyMode);
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
@@ -277,7 +312,7 @@ bool MainWindow::clearUserSettingsAndQuit() {
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   QString error;
   if (!SystemProxy::disable(&error)) {
-    showError("Unable to restore the system proxy: " + error);
+    showError(tr("Unable to restore the system proxy: %1").arg(error));
     return false;
   }
   systemProxyActive_ = false;
@@ -287,7 +322,7 @@ bool MainWindow::clearUserSettingsAndQuit() {
   settings.clear();
   settings.sync();
   if (settings.status() != QSettings::NoError) {
-    showError("Unable to clear user settings");
+    showError(tr("Unable to clear user settings"));
     return false;
   }
 
@@ -299,11 +334,11 @@ bool MainWindow::clearUserSettingsAndQuit() {
 
 void MainWindow::startProxy() {
   if (handle_ == nullptr) {
-    showError("Failed to create ws2tcp handle");
+    showError(tr("Failed to create ws2tcp handle"));
     return;
   }
   if (gatewayEdit_->text().trimmed().isEmpty()) {
-    showError("Gateway is required");
+    showError(tr("Gateway is required"));
     return;
   }
 
@@ -312,15 +347,15 @@ void MainWindow::startProxy() {
   if (rc == WS2TCP_OK) {
     saveUserSettings();
     updateConfigurationInputs(true);
-    updateRuntimeStatus("Starting " + listenEdit_->text().trimmed());
-    logMessage("Started");
+    updateRuntimeStatus(tr("Starting %1").arg(listenEdit_->text().trimmed()));
+    logMessage(tr("Started"));
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
     if (systemProxyCheck_->isChecked()) {
       setSystemProxyEnabled(true);
     }
 #endif
   } else {
-    appendError("Start failed");
+    appendError(tr("Start failed"));
   }
   refreshStatus();
   updateTrayActions();
@@ -339,10 +374,10 @@ void MainWindow::stopProxy() {
   if (rc == WS2TCP_OK) {
     saveUserSettings();
     updateConfigurationInputs(false);
-    updateRuntimeStatus("Stopped");
-    logMessage("Stopped");
+    updateRuntimeStatus(tr("Stopped"));
+    logMessage(tr("Stopped"));
   } else {
-    appendError("Stop failed");
+    appendError(tr("Stop failed"));
   }
   refreshStatus();
   updateTrayActions();
@@ -358,15 +393,15 @@ void MainWindow::updateProxyMode(const QString &mode) {
   const QByteArray modeUtf8 = mode.toUtf8();
   const int rc = ws2tcp_set_proxy_mode(handle_, modeUtf8.constData());
   if (rc == WS2TCP_OK) {
-    logMessage("Proxy mode changed to " + mode);
+    logMessage(tr("Proxy mode changed to %1").arg(mode));
   } else {
-    appendError("Failed to change proxy mode");
+    appendError(tr("Failed to change proxy mode"));
   }
 }
 
 void MainWindow::refreshStatus() {
   if (handle_ == nullptr) {
-    updateRuntimeStatus("Unavailable");
+    updateRuntimeStatus(tr("Unavailable"));
     startAction_->setEnabled(false);
     stopAction_->setEnabled(false);
     return;
@@ -387,10 +422,10 @@ void MainWindow::refreshStatus() {
         handle_ != nullptr ? QString::fromUtf8(ws2tcp_last_error(handle_))
                            : QString();
     if (!error.isEmpty()) {
-      logMessage("Proxy stopped with error: " + error);
-      updateRuntimeStatus("Stopped with error");
+      logMessage(tr("Proxy stopped with error: %1").arg(error));
+      updateRuntimeStatus(tr("Stopped with error"));
     } else {
-      updateRuntimeStatus("Stopped");
+      updateRuntimeStatus(tr("Stopped"));
     }
   }
   wasRunning_ = running;
@@ -409,7 +444,7 @@ void MainWindow::logMessage(const QString &message) {
 
 void MainWindow::showSettingsDialog() {
   QDialog dialog(this);
-  dialog.setWindowTitle("Settings");
+  dialog.setWindowTitle(tr("Settings"));
 
   auto *layout = new QVBoxLayout(&dialog);
   auto *form = new QFormLayout();
@@ -420,28 +455,29 @@ void MainWindow::showSettingsDialog() {
       handle_ != nullptr &&
       ws2tcp_status(handle_) == WS2TCP_STATUS_RUNNING;
   bufferSizeSpin->setEnabled(!running);
-  form->addRow("Buffer size", bufferSizeSpin);
+  form->addRow(tr("Buffer size"), bufferSizeSpin);
 
   auto *refreshIntervalSpin = new QSpinBox(&dialog);
   refreshIntervalSpin->setRange(1, 24 * 60 * 60);
   refreshIntervalSpin->setValue(refreshIntervalSeconds_);
   refreshIntervalSpin->setEnabled(!running);
-  form->addRow("Rule refresh seconds", refreshIntervalSpin);
+  form->addRow(tr("Rule refresh seconds"), refreshIntervalSpin);
 
   auto *insecureCheck = new QCheckBox(&dialog);
   insecureCheck->setChecked(insecure_);
   insecureCheck->setEnabled(!running);
-  form->addRow("Skip TLS certificate verification (insecure)", insecureCheck);
+  form->addRow(tr("Skip TLS certificate verification (insecure)"),
+              insecureCheck);
 
   auto *closeBehaviorCombo = new QComboBox(&dialog);
-  closeBehaviorCombo->addItem("Ask every time", "ask");
-  closeBehaviorCombo->addItem("Minimize to tray", "tray");
-  closeBehaviorCombo->addItem("Exit application", "exit");
+  closeBehaviorCombo->addItem(tr("Ask every time"), "ask");
+  closeBehaviorCombo->addItem(tr("Minimize to tray"), "tray");
+  closeBehaviorCombo->addItem(tr("Exit application"), "exit");
   const int currentIndex = closeBehaviorCombo->findData(closeBehavior_);
   if (currentIndex >= 0) {
     closeBehaviorCombo->setCurrentIndex(currentIndex);
   }
-  form->addRow("When closing window", closeBehaviorCombo);
+  form->addRow(tr("When closing window"), closeBehaviorCombo);
   layout->addLayout(form);
 
   auto *buttons = new QDialogButtonBox(
@@ -474,19 +510,18 @@ void MainWindow::updateConfigurationInputs(bool running) {
 
 void MainWindow::showAboutDialog() {
   QMessageBox::about(
-      this, "About ws2tcp-local",
-      QStringLiteral(
-          "<h3>ws2tcp-local</h3>"
-          "<p><b>Version:</b> %1</p>"
-          "<p><b>Build time:</b> %2</p>"
-          "<p>A Qt GUI for the ws2tcp-local WebSocket-to-TCP proxy.</p>"
-          "<p><b>Repository:</b> "
-          "<a href=\"https://github.com/uglykitty/ws2tcp-local-qt\">"
-          "github.com/uglykitty/ws2tcp-local-qt</a><br>"
-          "<b>Author:</b> Guofang Wang<br>"
-          "<b>Email:</b> "
-          "<a href=\"mailto:lazysoez@gmail.com\">"
-          "lazysoez@gmail.com</a></p>")
+      this, tr("About ws2tcp-local"),
+      tr("<h3>ws2tcp-local</h3>"
+         "<p><b>Version:</b> %1</p>"
+         "<p><b>Build time:</b> %2</p>"
+         "<p>A Qt GUI for the ws2tcp-local WebSocket-to-TCP proxy.</p>"
+         "<p><b>Repository:</b> "
+         "<a href=\"https://github.com/uglykitty/ws2tcp-local-qt\">"
+         "github.com/uglykitty/ws2tcp-local-qt</a><br>"
+         "<b>Author:</b> Guofang Wang<br>"
+         "<b>Email:</b> "
+         "<a href=\"mailto:lazysoez@gmail.com\">"
+         "lazysoez@gmail.com</a></p>")
           .arg(QCoreApplication::applicationVersion().toHtmlEscaped(),
                QStringLiteral(__DATE__ " " __TIME__).toHtmlEscaped()));
 }
@@ -539,11 +574,12 @@ void MainWindow::setSystemProxyEnabled(bool enabled) {
     }
     const QSignalBlocker blocker(systemProxyCheck_);
     systemProxyCheck_->setChecked(systemProxyActive_);
-    logMessage("System proxy error: " + error);
-    showError("Failed to update system proxy: " + error);
+    logMessage(tr("System proxy error: %1").arg(error));
+    showError(tr("Failed to update system proxy: %1").arg(error));
   } else {
     systemProxyActive_ = enabled;
-    logMessage(enabled ? "System proxy enabled" : "System proxy disabled");
+    logMessage(enabled ? tr("System proxy enabled")
+                       : tr("System proxy disabled"));
 #ifdef Q_OS_WIN
     if (enabled) {
       showEnvProxyRestartNotice();
@@ -566,14 +602,14 @@ void MainWindow::closeEvent(QCloseEvent *event) {
   }
   if (behavior == "ask") {
     QMessageBox messageBox(this);
-    messageBox.setWindowTitle("Close ws2tcp-local");
-    messageBox.setText("What should happen when the window is closed?");
+    messageBox.setWindowTitle(tr("Close ws2tcp-local"));
+    messageBox.setText(tr("What should happen when the window is closed?"));
     auto *minimizeButton = messageBox.addButton(
-        "Minimize to Tray", QMessageBox::AcceptRole);
+        tr("Minimize to Tray"), QMessageBox::AcceptRole);
     auto *exitButton = messageBox.addButton(
-        "Exit", QMessageBox::DestructiveRole);
+        tr("Exit"), QMessageBox::DestructiveRole);
     messageBox.addButton(QMessageBox::Cancel);
-    auto *rememberCheck = new QCheckBox("Remember my choice", &messageBox);
+    auto *rememberCheck = new QCheckBox(tr("Remember my choice"), &messageBox);
     messageBox.setCheckBox(rememberCheck);
     messageBox.exec();
     const bool rememberChoice = rememberCheck->isChecked();
@@ -634,20 +670,20 @@ QByteArray MainWindow::buildConfigJson() const {
 
 void MainWindow::setupTrayIcon() {
   if (!QSystemTrayIcon::isSystemTrayAvailable()) {
-    logMessage("System tray is not available");
+    logMessage(tr("System tray is not available"));
     return;
   }
 
   trayMenu_ = new QMenu(this);
-  showHideAction_ = trayMenu_->addAction("Hide window");
+  showHideAction_ = trayMenu_->addAction(tr("Hide window"));
   trayMenu_->addAction(startAction_);
   trayMenu_->addAction(stopAction_);
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
-  traySystemProxyAction_ = trayMenu_->addAction("Set system proxy");
+  traySystemProxyAction_ = trayMenu_->addAction(tr("Set system proxy"));
   traySystemProxyAction_->setCheckable(true);
 #endif
   trayMenu_->addSeparator();
-  quitAction_ = trayMenu_->addAction("Quit");
+  quitAction_ = trayMenu_->addAction(tr("Quit"));
 
   trayIcon_ = new QSystemTrayIcon(applicationIcon(), this);
   trayIcon_->setToolTip("ws2tcp-local");
@@ -669,7 +705,8 @@ void MainWindow::setupTrayIcon() {
 
 void MainWindow::updateTrayActions() {
   if (showHideAction_ != nullptr) {
-    showHideAction_->setText(isVisible() ? "Hide window" : "Show window");
+    showHideAction_->setText(isVisible() ? tr("Hide window")
+                                         : tr("Show window"));
   }
 
   if (handle_ == nullptr) {
@@ -753,6 +790,11 @@ void MainWindow::loadUserSettings() {
     closeBehavior_ = closeBehavior;
   }
 
+  const QString language = settings.value("ui/language", "en_US").toString();
+  if (language == "en_US" || language == "zh_CN") {
+    language_ = language;
+  }
+
   insecure_ = settings.value("proxy/insecure", insecure_).toBool();
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   systemProxyCheck_->setChecked(
@@ -779,6 +821,7 @@ void MainWindow::saveUserSettings() const {
                     refreshIntervalSeconds_);
   settings.setValue("proxy/proxy_mode", proxyModeCombo_->currentText());
   settings.setValue("ui/close_behavior", closeBehavior_);
+  settings.setValue("ui/language", language_);
   settings.setValue("proxy/insecure", insecure_);
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   settings.setValue("proxy/set_system_proxy",
@@ -795,7 +838,7 @@ void MainWindow::appendError(const QString &prefix) {
 
 void MainWindow::showError(const QString &message) {
   updateRuntimeStatus(message);
-  QMessageBox::warning(this, "ws2tcp-local", message);
+  QMessageBox::warning(this, tr("ws2tcp-local"), message);
 }
 
 void MainWindow::updateRuntimeStatus(const QString &message) {
@@ -811,15 +854,15 @@ void MainWindow::showEnvProxyRestartNotice() {
 
   QMessageBox messageBox(this);
   messageBox.setIcon(QMessageBox::Information);
-  messageBox.setWindowTitle("ws2tcp-local");
+  messageBox.setWindowTitle(tr("ws2tcp-local"));
   messageBox.setText(
-      "System proxy enabled. The HTTP_PROXY, HTTPS_PROXY and ALL_PROXY "
-      "user environment variables have also been set.\n\n"
-      "Already-open terminals and applications won't see them until you "
-      "restart the terminal (or the app).");
+      tr("System proxy enabled. The HTTP_PROXY, HTTPS_PROXY and ALL_PROXY "
+         "user environment variables have also been set.\n\n"
+         "Already-open terminals and applications won't see them until you "
+         "restart the terminal (or the app)."));
   messageBox.addButton(QMessageBox::Ok);
   auto *dontShowAgainCheck =
-      new QCheckBox("Don't show this again", &messageBox);
+      new QCheckBox(tr("Don't show this again"), &messageBox);
   messageBox.setCheckBox(dontShowAgainCheck);
   messageBox.exec();
 
@@ -838,7 +881,7 @@ void MainWindow::updateRuntimeStatusFromLog(const QString &message) {
     const QString rest = message.mid(listenIndex + 7);
     const QString listen = rest.section(' ', 0, 0);
     if (!listen.isEmpty()) {
-      updateRuntimeStatus("Running on " + listen);
+      updateRuntimeStatus(tr("Running on %1").arg(listen));
       return;
     }
   }
@@ -848,12 +891,12 @@ void MainWindow::updateRuntimeStatusFromLog(const QString &message) {
     const QString rest = message.mid(start + 22);
     const QString listen = rest.section(' ', 0, 0);
     if (!listen.isEmpty()) {
-      updateRuntimeStatus("Starting " + listen);
+      updateRuntimeStatus(tr("Starting %1").arg(listen));
     }
   } else if (message.contains("proxy task stopped")) {
-    updateRuntimeStatus("Stopped");
+    updateRuntimeStatus(tr("Stopped"));
   } else if (message.contains("proxy task failed")) {
-    updateRuntimeStatus("Stopped with error");
+    updateRuntimeStatus(tr("Stopped with error"));
   }
 }
 

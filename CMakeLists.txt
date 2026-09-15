@@ -23,7 +23,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Network Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Network Widgets LinguistTools)
 
 set(WS2TCP_LOCAL_CLI_SOURCE_DIR
     "${CMAKE_CURRENT_LIST_DIR}/../ws2tcp-local"
@@ -282,6 +282,10 @@ add_executable(ws2tcp-local-qt
 
 target_compile_definitions(ws2tcp-local-qt PRIVATE
     WS2TCP_LOCAL_VERSION="${PROJECT_VERSION}")
+
+qt_add_translations(ws2tcp-local-qt
+    TS_FILES translations/ws2tcp-local-qt_zh_CN.ts
+    RESOURCE_PREFIX "/i18n")
 
 if(APPLE)
     set(WS2TCP_MACOS_SIGNING_IDENTITY "-" CACHE STRING

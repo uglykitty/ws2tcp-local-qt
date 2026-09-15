@@ -8,6 +8,7 @@
 #include <QMessageBox>
 #include <QSettings>
 #include <QThread>
+#include <QTranslator>
 
 #include "MainWindow.h"
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
@@ -72,6 +73,14 @@ int main(int argc, char *argv[]) {
   QCoreApplication::setApplicationVersion(WS2TCP_LOCAL_VERSION);
   QApplication::setQuitOnLastWindowClosed(false);
 
+  const QString language =
+      QSettings().value("ui/language", "en_US").toString();
+  QTranslator appTranslator;
+  if (language == "zh_CN" &&
+      appTranslator.load(QStringLiteral(":/i18n/ws2tcp-local-qt_zh_CN.qm"))) {
+    QApplication::installTranslator(&appTranslator);
+  }
+
   QCommandLineParser parser;
   parser.setApplicationDescription(
       "Qt GUI for the ws2tcp-local WebSocket-to-TCP proxy");
@@ -104,8 +113,8 @@ int main(int argc, char *argv[]) {
     QString error;
     if (!SystemProxy::disable(&error)) {
       QMessageBox::critical(
-          nullptr, "ws2tcp-local",
-          "Unable to restore the system proxy: " + error);
+          nullptr, QObject::tr("ws2tcp-local"),
+          QObject::tr("Unable to restore the system proxy: %1").arg(error));
       return 1;
     }
 #endif
@@ -113,8 +122,8 @@ int main(int argc, char *argv[]) {
     settings.clear();
     settings.sync();
     if (settings.status() != QSettings::NoError) {
-      QMessageBox::critical(nullptr, "ws2tcp-local",
-                            "Unable to clear user settings");
+      QMessageBox::critical(nullptr, QObject::tr("ws2tcp-local"),
+                            QObject::tr("Unable to clear user settings"));
       return 1;
     }
     return 0;
@@ -137,8 +146,8 @@ int main(int argc, char *argv[]) {
     QLocalServer::removeServer(serverName);
     if (!instanceServer.listen(serverName)) {
       QMessageBox::critical(
-          nullptr, "ws2tcp-local",
-          QString("Unable to create the single-instance service: %1")
+          nullptr, QObject::tr("ws2tcp-local"),
+          QObject::tr("Unable to create the single-instance service: %1")
               .arg(instanceServer.errorString()));
       return 1;
     }

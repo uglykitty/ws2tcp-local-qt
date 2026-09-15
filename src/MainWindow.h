@@ -94,6 +94,7 @@ class MainWindow final : public QMainWindow {
   bool insecure_ = false;
   QString closeBehavior_ = "ask";
   QString sessionCloseBehavior_;
+  QString language_ = "en_US";
   QString runtimeStatus_;
 };
 

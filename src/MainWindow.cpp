@@ -554,6 +554,10 @@ void MainWindow::showAndActivate() {
 }
 
 void MainWindow::quitFromTray() {
+  quitGracefully();
+}
+
+void MainWindow::quitGracefully() {
   allowClose_ = true;
   QApplication::quit();
 }

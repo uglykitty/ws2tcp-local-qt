@@ -40,7 +40,7 @@ NotificationResult notifyRunningInstance(const QString &serverName,
     return NotificationResult::Failed;
   }
 
-  if (command != "clear-user-settings") {
+  if (command != "clear-user-settings" && command != "quit") {
     return NotificationResult::Succeeded;
   }
 
@@ -90,7 +90,17 @@ int main(int argc, char *argv[]) {
       "clear-user-settings",
       "Clear the current user's saved settings and exit.");
   parser.addOption(clearUserSettingsOption);
+  QCommandLineOption quitRunningInstanceOption(
+      "quit-running-instance",
+      "Ask a running instance to quit, then exit.");
+  parser.addOption(quitRunningInstanceOption);
   parser.process(app);
+
+  if (parser.isSet(quitRunningInstanceOption)) {
+    const NotificationResult result = notifyRunningInstance(
+        singleInstanceServerName(), QByteArrayLiteral("quit"));
+    return result == NotificationResult::Failed ? 1 : 0;
+  }
 
   const bool clearUserSettings =
       parser.isSet(clearUserSettingsOption);
@@ -166,6 +176,11 @@ int main(int argc, char *argv[]) {
           socket->write(window.clearUserSettingsAndQuit() ? "ok" : "error");
           socket->flush();
           socket->waitForBytesWritten(1000);
+        } else if (command == "quit") {
+          socket->write("ok");
+          socket->flush();
+          socket->waitForBytesWritten(1000);
+          window.quitGracefully();
         } else {
           window.showAndActivate();
         }

@@ -23,6 +23,7 @@ class MainWindow final : public QMainWindow {
   ~MainWindow() override;
   bool clearUserSettingsAndQuit();
   void showAndActivate();
+  void quitGracefully();
 
  private slots:
   void startProxy();

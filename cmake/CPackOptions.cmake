@@ -7,6 +7,14 @@ if(CPACK_GENERATOR STREQUAL "NSIS")
 
 Var KeepUserSettingsCheckbox
 Var KeepUserSettings
+; Set only by un.UserSettingsPageLeave below, i.e. only when a user actually
+; ran the uninstaller interactively and reached that page. NSIS variables
+; default to an empty string, so a silent run -- including the one
+; CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL performs before an upgrade,
+; where the page is never shown -- leaves this unset. The uninstall commands
+; below key off this flag rather than IfSilent, so "settings were explicitly
+; requested to be cleared" is what decides the behavior, not silence.
+Var UserSettingsPageShown
 
 !define MUI_CUSTOMFUNCTION_GUIINIT SetDesktopShortcutDefault
 Function SetDesktopShortcutDefault
@@ -35,25 +43,31 @@ FunctionEnd
 
 Function un.UserSettingsPageLeave
     ${NSD_GetState} $KeepUserSettingsCheckbox $KeepUserSettings
+    StrCpy $UserSettingsPageShown "1"
 FunctionEnd
 ]=])
 
     set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS [=[
-; A silent uninstall never shows the custom un.UserSettingsPage above, so
-; $KeepUserSettings is left at its unset default (not ${BST_CHECKED}) and
-; the check below would wipe user settings unconditionally. That is exactly
-; what happens on every upgrade: CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL
-; silently runs the previous version's uninstaller before installing the
-; new one. Skip the clear entirely when silent; only an interactive,
-; user-driven uninstall should offer to wipe settings.
-IfSilent skip_clear_user_settings
-${If} $KeepUserSettings != ${BST_CHECKED}
+; Ask any running instance to quit and wait for it to actually exit before
+; files are touched, so the upgrade/uninstall does not race a locked exe.
+; This runs unconditionally (including on the silent uninstall that
+; CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL performs before an upgrade),
+; unlike the user-settings prompt below which only makes sense interactively.
+ExecWait '"$INSTDIR\bin\ws2tcp-local-qt.exe" --quit-running-instance' $0
+${If} $0 != 0
+    IfSilent skip_quit_warning
+    MessageBox MB_ICONEXCLAMATION|MB_OK \
+        "ws2tcp-local could not be closed automatically (error code $0). Please close it manually to avoid leftover files."
+    skip_quit_warning:
+${EndIf}
+
+${If} $UserSettingsPageShown == "1"
+${AndIf} $KeepUserSettings != ${BST_CHECKED}
     ExecWait '"$INSTDIR\bin\ws2tcp-local-qt.exe" --clear-user-settings' $0
     ${If} $0 != 0
         MessageBox MB_ICONEXCLAMATION|MB_OK \
             "User settings could not be cleared (error code $0)."
     ${EndIf}
 ${EndIf}
-skip_clear_user_settings:
 ]=])
 endif()

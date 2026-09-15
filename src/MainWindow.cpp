@@ -542,6 +542,11 @@ void MainWindow::setSystemProxyEnabled(bool enabled) {
   } else {
     systemProxyActive_ = enabled;
     logMessage(enabled ? "System proxy enabled" : "System proxy disabled");
+#ifdef Q_OS_WIN
+    if (enabled) {
+      showEnvProxyRestartNotice();
+    }
+#endif
   }
   updateTrayActions();
 }
@@ -751,6 +756,10 @@ void MainWindow::loadUserSettings() {
   systemProxyCheck_->setChecked(
       settings.value("proxy/set_system_proxy", false).toBool());
 #endif
+#ifdef Q_OS_WIN
+  suppressEnvProxyNotice_ =
+      settings.value("ui/suppress_env_proxy_notice", false).toBool();
+#endif
 }
 
 void MainWindow::saveUserSettings() const {
@@ -791,6 +800,35 @@ void MainWindow::updateRuntimeStatus(const QString &message) {
   runtimeStatus_ = message;
   statusBar()->showMessage(runtimeStatus_);
 }
+
+#ifdef Q_OS_WIN
+void MainWindow::showEnvProxyRestartNotice() {
+  if (suppressEnvProxyNotice_) {
+    return;
+  }
+
+  QMessageBox messageBox(this);
+  messageBox.setIcon(QMessageBox::Information);
+  messageBox.setWindowTitle("ws2tcp-local");
+  messageBox.setText(
+      "System proxy enabled. The HTTP_PROXY, HTTPS_PROXY and ALL_PROXY "
+      "user environment variables have also been set.\n\n"
+      "Already-open terminals and applications won't see them until you "
+      "restart the terminal (or the app).");
+  messageBox.addButton(QMessageBox::Ok);
+  auto *dontShowAgainCheck =
+      new QCheckBox("Don't show this again", &messageBox);
+  messageBox.setCheckBox(dontShowAgainCheck);
+  messageBox.exec();
+
+  if (dontShowAgainCheck->isChecked()) {
+    suppressEnvProxyNotice_ = true;
+    QSettings settings;
+    settings.setValue("ui/suppress_env_proxy_notice", true);
+    settings.sync();
+  }
+}
+#endif
 
 void MainWindow::updateRuntimeStatusFromLog(const QString &message) {
   const int listenIndex = message.indexOf("listen=");

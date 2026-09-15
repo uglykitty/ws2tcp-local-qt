@@ -11,7 +11,23 @@ namespace {
 
 constexpr wchar_t kInternetSettingsKey[] =
     L"Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings";
+constexpr wchar_t kEnvironmentKey[] = L"Environment";
 constexpr char kSettingsGroup[] = "system_proxy/windows";
+
+// Windows environment variable names are case-insensitive, so e.g.
+// "HTTP_PROXY" and "http_proxy" would collide into a single value if both
+// were listed here; only the canonical upper-case forms are meaningful.
+constexpr const wchar_t *kProxyEnvNames[] = {
+    L"HTTP_PROXY",
+    L"HTTPS_PROXY",
+    L"ALL_PROXY",
+};
+constexpr int kProxyEnvNameCount =
+    static_cast<int>(sizeof(kProxyEnvNames) / sizeof(kProxyEnvNames[0]));
+
+QString proxyEnvSettingsKey(int index) {
+  return QString("original_env_%1").arg(index);
+}
 
 struct RegistryValue {
   bool exists = false;
@@ -136,6 +152,13 @@ void notifyProxyChanged() {
   InternetSetOptionW(nullptr, INTERNET_OPTION_REFRESH, nullptr, 0);
 }
 
+void notifyEnvironmentChanged() {
+  DWORD_PTR result = 0;
+  SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0,
+                      reinterpret_cast<LPARAM>(L"Environment"),
+                      SMTO_ABORTIFHUNG, 5000, &result);
+}
+
 QString normalizeListenAddress(const QString &listenAddress, QString *error) {
   const QString input = listenAddress.trimmed();
   const int separator = input.lastIndexOf(':');
@@ -204,8 +227,28 @@ bool restoreSavedSettings(QString *error, bool onlyIfOwned) {
                           loadValue(settings, "original_server"), error) &&
                writeValue(key, L"ProxyEnable",
                           loadValue(settings, "original_enable"), error);
+
+    HKEY envKey = nullptr;
+    const LONG envRc = RegOpenKeyExW(HKEY_CURRENT_USER, kEnvironmentKey, 0,
+                                     KEY_QUERY_VALUE | KEY_SET_VALUE, &envKey);
+    if (envRc == ERROR_SUCCESS) {
+      for (int i = 0; i < kProxyEnvNameCount; ++i) {
+        if (!writeValue(envKey, kProxyEnvNames[i],
+                        loadValue(settings, proxyEnvSettingsKey(i)), error)) {
+          restored = false;
+        }
+      }
+      RegCloseKey(envKey);
+    } else {
+      restored = false;
+      if (error != nullptr && error->isEmpty()) {
+        *error = windowsError("Failed to open environment settings", envRc);
+      }
+    }
+
     if (restored) {
       notifyProxyChanged();
+      notifyEnvironmentChanged();
     }
   }
   RegCloseKey(key);
@@ -226,6 +269,7 @@ bool WindowsSystemProxy::enable(const QString &listenAddress, QString *error) {
   if (proxyServer.isEmpty()) {
     return false;
   }
+  const QString proxyUrl = "http://" + proxyServer;
 
   QSettings settings;
   settings.beginGroup(kSettingsGroup);
@@ -253,11 +297,30 @@ bool WindowsSystemProxy::enable(const QString &listenAddress, QString *error) {
     return false;
   }
 
+  HKEY envKey = nullptr;
+  rc = RegOpenKeyExW(HKEY_CURRENT_USER, kEnvironmentKey, 0,
+                     KEY_QUERY_VALUE | KEY_SET_VALUE, &envKey);
+  if (rc != ERROR_SUCCESS) {
+    RegCloseKey(key);
+    settings.endGroup();
+    if (error != nullptr) {
+      *error = windowsError("Failed to open environment settings", rc);
+    }
+    return false;
+  }
+
   RegistryValue originalEnable;
   RegistryValue originalServer;
-  const bool readOk = readValue(key, L"ProxyEnable", &originalEnable, error) &&
-                      readValue(key, L"ProxyServer", &originalServer, error);
+  bool readOk = readValue(key, L"ProxyEnable", &originalEnable, error) &&
+               readValue(key, L"ProxyServer", &originalServer, error);
+
+  RegistryValue originalEnv[kProxyEnvNameCount];
+  for (int i = 0; readOk && i < kProxyEnvNameCount; ++i) {
+    readOk = readValue(envKey, kProxyEnvNames[i], &originalEnv[i], error);
+  }
+
   if (!readOk) {
+    RegCloseKey(envKey);
     RegCloseKey(key);
     settings.endGroup();
     return false;
@@ -265,13 +328,21 @@ bool WindowsSystemProxy::enable(const QString &listenAddress, QString *error) {
 
   saveValue(settings, "original_enable", originalEnable);
   saveValue(settings, "original_server", originalServer);
+  for (int i = 0; i < kProxyEnvNameCount; ++i) {
+    saveValue(settings, proxyEnvSettingsKey(i), originalEnv[i]);
+  }
   settings.setValue("applied_server", proxyServer);
   settings.setValue("active", true);
   settings.sync();
 
-  const bool writeOk = writeValue(key, L"ProxyServer",
-                                  stringValue(proxyServer), error) &&
-                       writeValue(key, L"ProxyEnable", dwordValue(1), error);
+  bool writeOk = writeValue(key, L"ProxyServer",
+                            stringValue(proxyServer), error) &&
+                writeValue(key, L"ProxyEnable", dwordValue(1), error);
+  for (int i = 0; writeOk && i < kProxyEnvNameCount; ++i) {
+    writeOk = writeValue(envKey, kProxyEnvNames[i], stringValue(proxyUrl),
+                         error);
+  }
+  RegCloseKey(envKey);
   RegCloseKey(key);
   settings.endGroup();
 
@@ -281,6 +352,7 @@ bool WindowsSystemProxy::enable(const QString &listenAddress, QString *error) {
   }
 
   notifyProxyChanged();
+  notifyEnvironmentChanged();
   return true;
 }
 

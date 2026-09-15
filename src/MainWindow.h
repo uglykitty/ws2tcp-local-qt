@@ -55,6 +55,9 @@ class MainWindow final : public QMainWindow {
   void updateRuntimeStatus(const QString &message);
   void updateRuntimeStatusFromLog(const QString &message);
   static void handleRustLog(const char *message, void *userData);
+#ifdef Q_OS_WIN
+  void showEnvProxyRestartNotice();
+#endif
 
   Ws2TcpHandle *handle_ = nullptr;
   QLineEdit *listenEdit_ = nullptr;
@@ -78,6 +81,9 @@ class MainWindow final : public QMainWindow {
   QCheckBox *systemProxyCheck_ = nullptr;
   QAction *traySystemProxyAction_ = nullptr;
   bool systemProxyActive_ = false;
+#endif
+#ifdef Q_OS_WIN
+  bool suppressEnvProxyNotice_ = false;
 #endif
   QAction *quitAction_ = nullptr;
   bool wasRunning_ = false;

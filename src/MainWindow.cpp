@@ -609,6 +609,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     auto *exitButton = messageBox.addButton(
         tr("Exit"), QMessageBox::DestructiveRole);
     messageBox.addButton(QMessageBox::Cancel);
+    messageBox.setDefaultButton(exitButton);
     auto *rememberCheck = new QCheckBox(tr("Remember my choice"), &messageBox);
     messageBox.setCheckBox(rememberCheck);
     messageBox.exec();

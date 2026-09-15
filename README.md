@@ -175,3 +175,32 @@ On macOS and MinGW use `libws2tcp_local_ffi.a`. With MSVC,
 linked into the executable, so `ws2tcp_local_ffi.dll` is no longer deployed.
 The install step still runs Qt's deployment logic on Windows, including the
 `qwindows` platform plugin.
+
+## Commit messages
+
+Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org)
+(`feat:`, `fix:`, `refactor:`, `chore:`, `ci:`, `docs:`, ...; add a scope like
+`feat(proxy): ...` when it helps). [CHANGELOG.md](CHANGELOG.md) is generated
+from these subjects by [git-cliff](https://git-cliff.org) (config in
+`cliff.toml`), which groups each release by commit type. Commits that don't
+follow the convention still show up, just bucketed under "Other".
+
+## Releasing
+
+1. Bump the version in `CMakeLists.txt` (`project(ws2tcp-local-qt VERSION
+   x.y.z ...)`).
+2. Regenerate the changelog and fold the new section into `CHANGELOG.md`:
+   ```bash
+   git-cliff --tag vx.y.z --unreleased --prepend CHANGELOG.md
+   ```
+3. Commit both files, e.g. `git commit -am "Release vx.y.z"`.
+4. Tag and push:
+   ```bash
+   git tag vx.y.z
+   git push origin main
+   git push origin vx.y.z
+   ```
+   Pushing the tag triggers `release.yml`, which builds the Windows and
+   macOS packages and publishes a GitHub Release. The release body is the
+   `CHANGES.md` that `release.yml` generates from the same `cliff.toml`
+   for just that tag — no need to write it by hand.

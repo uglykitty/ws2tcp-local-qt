@@ -33,6 +33,9 @@
 #include <QWidget>
 #ifdef Q_OS_WIN
 #include <QProcess>
+
+#include <windows.h>
+#include <shellapi.h>
 #endif
 
 #include <cmath>
@@ -113,6 +116,22 @@ QByteArray readBundledScript(const QString &resourcePath) {
     return QByteArray();
   }
   return file.readAll();
+}
+
+// wsl.exe's own launcher messages (install progress, "not installed" /
+// "run wsl --update" style diagnostics, ...) come out as UTF-16LE with no
+// BOM whenever stdout isn't a real console, which ours never is -- while
+// actual output relayed from inside the distro (curl, npm, nvm, ...) is
+// plain UTF-8. Detect the former by its telltale alternating-NUL bytes.
+QString decodeWslOutput(const QByteArray &data) {
+  const bool looksUtf16Le =
+      data.size() >= 4 && data.at(1) == '\0' && data.at(3) == '\0';
+  if (looksUtf16Le) {
+    return QString::fromUtf16(
+        reinterpret_cast<const char16_t *>(data.constData()),
+        data.size() / 2);
+  }
+  return QString::fromUtf8(data);
 }
 #endif
 
@@ -1031,7 +1050,7 @@ void MainWindow::runWslCommand(const QString &label,
   connect(process, &QProcess::readyReadStandardOutput, this,
           [this, process]() {
             const QString output =
-                QString::fromLocal8Bit(process->readAllStandardOutput());
+                decodeWslOutput(process->readAllStandardOutput());
             for (const QString &line :
                  output.split('\n', Qt::SkipEmptyParts)) {
               logMessage(line.trimmed());
@@ -1108,13 +1127,66 @@ void MainWindow::runWslScript(const QString &label,
 }
 
 void MainWindow::installWsl() {
-  runWslCommand(tr("Install WSL"), {QStringLiteral("--install")},
-               QByteArray(), [this](bool success) {
-                 if (!success) {
-                   return;
-                 }
-                 applyMirroredNetworking();
-               });
+  // wsl --install needs to enable Windows features and can install the WSL
+  // platform package, which requires elevation; run unelevated (as this
+  // app normally is), it was observed to bail out immediately with a
+  // generic "not installed" message instead of actually attempting that.
+  // ShellExecuteEx's "runas" verb elevates it, at the cost of not being
+  // able to stream its output back into our own (non-elevated) log panel
+  // the way runWslCommand does -- so it gets its own visible console
+  // instead, and we just poll for its exit code.
+  if (wslProcess_ != nullptr) {
+    logMessage(tr("Install WSL: another WSL command is already running."));
+    return;
+  }
+
+  logMessage(tr("Install WSL: requesting administrator privileges..."));
+  wslMenu_->menuAction()->setEnabled(false);
+
+  SHELLEXECUTEINFOW info = {};
+  info.cbSize = sizeof(info);
+  info.fMask = SEE_MASK_NOCLOSEPROCESS;
+  info.lpVerb = L"runas";
+  info.lpFile = L"wsl.exe";
+  info.lpParameters = L"--install";
+  info.nShow = SW_SHOWNORMAL;
+
+  if (!ShellExecuteExW(&info)) {
+    const DWORD error = GetLastError();
+    wslMenu_->menuAction()->setEnabled(true);
+    if (error == ERROR_CANCELLED) {
+      logMessage(tr("Install WSL: cancelled (UAC prompt was declined)."));
+    } else {
+      logMessage(tr("Install WSL: failed to start elevated (Windows error "
+                    "%1).")
+                    .arg(error));
+    }
+    return;
+  }
+
+  const HANDLE processHandle = info.hProcess;
+  auto *watcher = new QTimer(this);
+  watcher->setInterval(500);
+  connect(watcher, &QTimer::timeout, this, [this, processHandle, watcher]() {
+    DWORD exitCode = STILL_ACTIVE;
+    if (!GetExitCodeProcess(processHandle, &exitCode) ||
+        exitCode == STILL_ACTIVE) {
+      return;
+    }
+    watcher->stop();
+    watcher->deleteLater();
+    CloseHandle(processHandle);
+    wslMenu_->menuAction()->setEnabled(true);
+    if (exitCode == 0) {
+      logMessage(tr("Install WSL: done."));
+      applyMirroredNetworking();
+    } else {
+      logMessage(tr("Install WSL: failed (exit code %1). Check the console "
+                    "window it opened for details.")
+                    .arg(exitCode));
+    }
+  });
+  watcher->start();
 }
 
 void MainWindow::installNodeViaNvm() {

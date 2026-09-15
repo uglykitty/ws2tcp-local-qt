@@ -39,6 +39,14 @@ FunctionEnd
 ]=])
 
     set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS [=[
+; A silent uninstall never shows the custom un.UserSettingsPage above, so
+; $KeepUserSettings is left at its unset default (not ${BST_CHECKED}) and
+; the check below would wipe user settings unconditionally. That is exactly
+; what happens on every upgrade: CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL
+; silently runs the previous version's uninstaller before installing the
+; new one. Skip the clear entirely when silent; only an interactive,
+; user-driven uninstall should offer to wipe settings.
+IfSilent skip_clear_user_settings
 ${If} $KeepUserSettings != ${BST_CHECKED}
     ExecWait '"$INSTDIR\bin\ws2tcp-local-qt.exe" --clear-user-settings' $0
     ${If} $0 != 0
@@ -46,5 +54,6 @@ ${If} $KeepUserSettings != ${BST_CHECKED}
             "User settings could not be cleared (error code $0)."
     ${EndIf}
 ${EndIf}
+skip_clear_user_settings:
 ]=])
 endif()

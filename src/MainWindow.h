@@ -38,6 +38,9 @@ class MainWindow final : public QMainWindow {
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
   void setSystemProxyEnabled(bool enabled);
 #endif
+#ifdef Q_OS_WIN
+  void enableWslMirroredNetworking();
+#endif
 
  protected:
   void closeEvent(QCloseEvent *event) override;
@@ -56,6 +59,8 @@ class MainWindow final : public QMainWindow {
   void updateRuntimeStatusFromLog(const QString &message);
   static void handleRustLog(const char *message, void *userData);
 #ifdef Q_OS_WIN
+  void showRestartNotice(const QString &message, const QString &settingsKey,
+                         bool *suppressed);
   void showEnvProxyRestartNotice();
 #endif
 
@@ -84,6 +89,7 @@ class MainWindow final : public QMainWindow {
 #endif
 #ifdef Q_OS_WIN
   bool suppressEnvProxyNotice_ = false;
+  bool suppressWslRestartNotice_ = false;
 #endif
   QAction *quitAction_ = nullptr;
   bool wasRunning_ = false;

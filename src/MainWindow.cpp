@@ -35,6 +35,9 @@
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
 #include "SystemProxy.h"
 #endif
+#ifdef Q_OS_WIN
+#include "WslConfig.h"
+#endif
 
 namespace {
 
@@ -223,6 +226,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
                 tr("The language change will take effect after you restart "
                    "ws2tcp-local."));
           });
+
+#ifdef Q_OS_WIN
+  auto *toolsMenu = menuBar()->addMenu(tr("&Tools"));
+  auto *wslMirroredAction =
+      toolsMenu->addAction(tr("Set WSL Networking to Mirrored"));
+  connect(wslMirroredAction, &QAction::triggered, this,
+          &MainWindow::enableWslMirroredNetworking);
+#endif
 
   auto *helpMenu = menuBar()->addMenu(tr("&Help"));
   auto *aboutAction = helpMenu->addAction(tr("&About ws2tcp-local"));
@@ -804,6 +815,8 @@ void MainWindow::loadUserSettings() {
 #ifdef Q_OS_WIN
   suppressEnvProxyNotice_ =
       settings.value("ui/suppress_env_proxy_notice", false).toBool();
+  suppressWslRestartNotice_ =
+      settings.value("ui/suppress_wsl_restart_notice", false).toBool();
 #endif
 }
 
@@ -848,19 +861,17 @@ void MainWindow::updateRuntimeStatus(const QString &message) {
 }
 
 #ifdef Q_OS_WIN
-void MainWindow::showEnvProxyRestartNotice() {
-  if (suppressEnvProxyNotice_) {
+void MainWindow::showRestartNotice(const QString &message,
+                                   const QString &settingsKey,
+                                   bool *suppressed) {
+  if (*suppressed) {
     return;
   }
 
   QMessageBox messageBox(this);
   messageBox.setIcon(QMessageBox::Information);
   messageBox.setWindowTitle(tr("ws2tcp-local"));
-  messageBox.setText(
-      tr("System proxy enabled. The HTTP_PROXY, HTTPS_PROXY and ALL_PROXY "
-         "user environment variables have also been set.\n\n"
-         "Already-open terminals and applications won't see them until you "
-         "restart the terminal (or the app)."));
+  messageBox.setText(message);
   messageBox.addButton(QMessageBox::Ok);
   auto *dontShowAgainCheck =
       new QCheckBox(tr("Don't show this again"), &messageBox);
@@ -868,11 +879,34 @@ void MainWindow::showEnvProxyRestartNotice() {
   messageBox.exec();
 
   if (dontShowAgainCheck->isChecked()) {
-    suppressEnvProxyNotice_ = true;
+    *suppressed = true;
     QSettings settings;
-    settings.setValue("ui/suppress_env_proxy_notice", true);
+    settings.setValue(settingsKey, true);
     settings.sync();
   }
+}
+
+void MainWindow::showEnvProxyRestartNotice() {
+  showRestartNotice(
+      tr("System proxy enabled. The HTTP_PROXY, HTTPS_PROXY and ALL_PROXY "
+         "user environment variables have also been set.\n\n"
+         "Already-open terminals and applications won't see them until you "
+         "restart the terminal (or the app)."),
+      "ui/suppress_env_proxy_notice", &suppressEnvProxyNotice_);
+}
+
+void MainWindow::enableWslMirroredNetworking() {
+  QString error;
+  if (!WslConfig::enableMirroredNetworking(&error)) {
+    showError(tr("Failed to update .wslconfig: %1").arg(error));
+    return;
+  }
+
+  showRestartNotice(
+      tr("WSL networking mode set to mirrored in .wslconfig.\n\n"
+         "Restart WSL (run \"wsl --shutdown\" in a terminal) for the "
+         "change to take effect."),
+      "ui/suppress_wsl_restart_notice", &suppressWslRestartNotice_);
 }
 #endif
 

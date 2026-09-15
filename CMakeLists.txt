@@ -261,6 +261,8 @@ if(WIN32)
     list(APPEND WS2TCP_LOCAL_QT_SOURCES
         src/WindowsSystemProxy.cpp
         src/WindowsSystemProxy.h
+        src/WslConfig.cpp
+        src/WslConfig.h
         src/resources/app.rc)
 endif()
 

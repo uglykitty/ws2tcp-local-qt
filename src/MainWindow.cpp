@@ -478,6 +478,7 @@ void MainWindow::showAboutDialog() {
       QStringLiteral(
           "<h3>ws2tcp-local</h3>"
           "<p><b>Version:</b> %1</p>"
+          "<p><b>Build time:</b> %2</p>"
           "<p>A Qt GUI for the ws2tcp-local WebSocket-to-TCP proxy.</p>"
           "<p><b>Repository:</b> "
           "<a href=\"https://github.com/uglykitty/ws2tcp-local-qt\">"
@@ -486,7 +487,8 @@ void MainWindow::showAboutDialog() {
           "<b>Email:</b> "
           "<a href=\"mailto:lazysoez@gmail.com\">"
           "lazysoez@gmail.com</a></p>")
-          .arg(QCoreApplication::applicationVersion().toHtmlEscaped()));
+          .arg(QCoreApplication::applicationVersion().toHtmlEscaped(),
+               QStringLiteral(__DATE__ " " __TIME__).toHtmlEscaped()));
 }
 
 void MainWindow::toggleWindowVisibility() {

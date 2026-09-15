@@ -5,6 +5,12 @@ All notable changes to this project are documented here, generated with
 commit messages. Commits made before this file existed are grouped
 best-effort under "Other".
 <!-- git-cliff: end of header -->
+## [0.1.19] - 2026-09-15
+
+### 🐛 Bug Fixes
+
+- *(wsl)* Elevate Install WSL and decode wsl.exe's own UTF-16LE output
+
 ## [0.1.18] - 2026-09-15
 
 ### 🚀 Features

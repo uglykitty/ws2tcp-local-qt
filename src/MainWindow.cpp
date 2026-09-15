@@ -7,6 +7,7 @@
 #include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -24,11 +25,15 @@
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QScrollBar>
+#include <QStandardPaths>
 #include <QStyle>
 #include <QStatusBar>
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <QWidget>
+#ifdef Q_OS_WIN
+#include <QProcess>
+#endif
 
 #include <cmath>
 
@@ -94,6 +99,22 @@ QIcon settingsIcon(const QPalette &palette) {
   }
   return icon;
 }
+
+#ifdef Q_OS_WIN
+// wsl.exe mis-reconstructs the Linux command line when an argv element it
+// receives contains embedded double quotes (verified empirically: even
+// `bash -lc "echo \"A $HOME\""` loses the $HOME expansion) -- so install
+// logic lives in real .sh files under src/resources/wsl, bundled as Qt
+// resources, and gets shipped into WSL as a script file instead of an
+// inline -c string. See MainWindow::runWslScript.
+QByteArray readBundledScript(const QString &resourcePath) {
+  QFile file(resourcePath);
+  if (!file.open(QIODevice::ReadOnly)) {
+    return QByteArray();
+  }
+  return file.readAll();
+}
+#endif
 
 }  // namespace
 
@@ -228,11 +249,38 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
           });
 
 #ifdef Q_OS_WIN
-  auto *toolsMenu = menuBar()->addMenu(tr("&Tools"));
+  wslMenu_ = menuBar()->addMenu(tr("&WSL"));
+
+  auto *installWslAction = wslMenu_->addAction(tr("Install WSL"));
+  connect(installWslAction, &QAction::triggered, this,
+          &MainWindow::installWsl);
+
   auto *wslMirroredAction =
-      toolsMenu->addAction(tr("Set WSL Networking to Mirrored"));
+      wslMenu_->addAction(tr("Set WSL Networking to Mirrored"));
   connect(wslMirroredAction, &QAction::triggered, this,
           &MainWindow::enableWslMirroredNetworking);
+
+  wslMenu_->addSeparator();
+
+  auto *installNodeAction =
+      wslMenu_->addAction(tr("Install Node.js (via nvm) in WSL"));
+  connect(installNodeAction, &QAction::triggered, this,
+          &MainWindow::installNodeViaNvm);
+
+  auto *installOpenCodeAction =
+      wslMenu_->addAction(tr("Install opencode CLI in WSL"));
+  connect(installOpenCodeAction, &QAction::triggered, this,
+          &MainWindow::installOpenCodeCli);
+
+  auto *installCodexAction =
+      wslMenu_->addAction(tr("Install Codex CLI in WSL"));
+  connect(installCodexAction, &QAction::triggered, this,
+          &MainWindow::installCodexCli);
+
+  auto *installClaudeAction =
+      wslMenu_->addAction(tr("Install Claude Code CLI in WSL"));
+  connect(installClaudeAction, &QAction::triggered, this,
+          &MainWindow::installClaudeCodeCli);
 #endif
 
   auto *helpMenu = menuBar()->addMenu(tr("&Help"));
@@ -284,6 +332,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   }
 
   loadUserSettings();
+#ifdef Q_OS_WIN
+  maybePromptWslMirroredNetworking();
+#endif
   (language_ == "zh_CN" ? chineseLanguageAction : englishLanguageAction)
       ->setChecked(true);
   connect(proxyModeCombo_, &QComboBox::currentTextChanged, this,
@@ -821,6 +872,8 @@ void MainWindow::loadUserSettings() {
       settings.value("ui/suppress_env_proxy_notice", false).toBool();
   suppressWslRestartNotice_ =
       settings.value("ui/suppress_wsl_restart_notice", false).toBool();
+  suppressWslMirroredPrompt_ =
+      settings.value("ui/suppress_wsl_mirrored_prompt", false).toBool();
 #endif
 }
 
@@ -900,6 +953,10 @@ void MainWindow::showEnvProxyRestartNotice() {
 }
 
 void MainWindow::enableWslMirroredNetworking() {
+  applyMirroredNetworking();
+}
+
+void MainWindow::applyMirroredNetworking() {
   QString error;
   if (!WslConfig::enableMirroredNetworking(&error)) {
     showError(tr("Failed to update .wslconfig: %1").arg(error));
@@ -911,6 +968,173 @@ void MainWindow::enableWslMirroredNetworking() {
          "Restart WSL (run \"wsl --shutdown\" in a terminal) for the "
          "change to take effect."),
       "ui/suppress_wsl_restart_notice", &suppressWslRestartNotice_);
+}
+
+void MainWindow::maybePromptWslMirroredNetworking() {
+  if (suppressWslMirroredPrompt_) {
+    return;
+  }
+  if (QStandardPaths::findExecutable("wsl.exe").isEmpty()) {
+    return;
+  }
+  if (WslConfig::isMirroredNetworkingEnabled()) {
+    return;
+  }
+
+  QMessageBox messageBox(this);
+  messageBox.setIcon(QMessageBox::Question);
+  messageBox.setWindowTitle(tr("ws2tcp-local"));
+  messageBox.setText(
+      tr("WSL is not using mirrored networking mode. Switch to mirrored "
+         "mode now?\n\n"
+         "This updates .wslconfig; WSL will need a restart (\"wsl "
+         "--shutdown\") to apply it."));
+  auto *yesButton = messageBox.addButton(QMessageBox::Yes);
+  messageBox.addButton(QMessageBox::No);
+  messageBox.setDefaultButton(QMessageBox::No);
+  auto *dontAskAgainCheck = new QCheckBox(tr("Don't ask again"), &messageBox);
+  messageBox.setCheckBox(dontAskAgainCheck);
+  messageBox.exec();
+
+  if (dontAskAgainCheck->isChecked()) {
+    suppressWslMirroredPrompt_ = true;
+    QSettings settings;
+    settings.setValue("ui/suppress_wsl_mirrored_prompt", true);
+    settings.sync();
+  }
+
+  if (messageBox.clickedButton() != yesButton) {
+    return;
+  }
+
+  applyMirroredNetworking();
+}
+
+void MainWindow::runWslCommand(const QString &label,
+                               const QStringList &arguments,
+                               const QByteArray &stdinData,
+                               std::function<void(bool)> onFinished) {
+  if (wslProcess_ != nullptr) {
+    logMessage(tr("%1: another WSL command is already running.").arg(label));
+    return;
+  }
+
+  logMessage(tr("%1: starting...").arg(label));
+  wslMenu_->menuAction()->setEnabled(false);
+
+  auto *process = new QProcess(this);
+  wslProcess_ = process;
+  process->setProgram(QStringLiteral("wsl.exe"));
+  process->setArguments(arguments);
+  process->setProcessChannelMode(QProcess::MergedChannels);
+
+  connect(process, &QProcess::readyReadStandardOutput, this,
+          [this, process]() {
+            const QString output =
+                QString::fromLocal8Bit(process->readAllStandardOutput());
+            for (const QString &line :
+                 output.split('\n', Qt::SkipEmptyParts)) {
+              logMessage(line.trimmed());
+            }
+          });
+  connect(process,
+          QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+          [this, process, label,
+           onFinished](int exitCode, QProcess::ExitStatus status) {
+            const bool success =
+                status == QProcess::NormalExit && exitCode == 0;
+            if (success) {
+              logMessage(tr("%1: done.").arg(label));
+            } else {
+              logMessage(
+                  tr("%1: failed (exit code %2).").arg(label).arg(exitCode));
+            }
+            wslMenu_->menuAction()->setEnabled(true);
+            wslProcess_ = nullptr;
+            process->deleteLater();
+            if (onFinished) {
+              onFinished(success);
+            }
+          });
+  connect(process, &QProcess::errorOccurred, this,
+          [this, process, label, onFinished](QProcess::ProcessError error) {
+            if (error != QProcess::FailedToStart) {
+              // 'finished' above reports a crash or non-zero exit.
+              return;
+            }
+            logMessage(tr("%1: failed to start (%2).")
+                          .arg(label, process->errorString()));
+            wslMenu_->menuAction()->setEnabled(true);
+            wslProcess_ = nullptr;
+            process->deleteLater();
+            if (onFinished) {
+              onFinished(false);
+            }
+          });
+
+  process->start();
+  if (!stdinData.isEmpty()) {
+    process->write(stdinData);
+  }
+  process->closeWriteChannel();
+}
+
+void MainWindow::runWslScript(const QString &label,
+                              const QString &resourcePath,
+                              const QStringList &scriptArgs,
+                              std::function<void(bool)> onFinished) {
+  const QByteArray script = readBundledScript(resourcePath);
+  if (script.isEmpty()) {
+    logMessage(tr("%1: bundled script %2 is missing or empty.")
+                  .arg(label, resourcePath));
+    return;
+  }
+
+  const QString remotePath = QStringLiteral("/tmp/ws2tcp-local-%1")
+                                 .arg(QFileInfo(resourcePath).fileName());
+  // No double quotes anywhere in this wrapper -- wsl.exe mis-reconstructs
+  // argv elements that contain embedded double quotes (see
+  // readBundledScript's comment), so the actual script, which does need
+  // them, travels over stdin instead of as part of this command line. The
+  // brace group captures the script's real exit code so cleanup (which
+  // always "succeeds") doesn't mask a failure.
+  const QString wrapper =
+      QStringLiteral("cat > %1 && { bash %1 %2; ec=$?; rm -f %1; exit $ec; "
+                    "} || exit 1")
+          .arg(remotePath, scriptArgs.join(QLatin1Char(' ')));
+  runWslCommand(label,
+               {QStringLiteral("bash"), QStringLiteral("-c"), wrapper},
+               script, onFinished);
+}
+
+void MainWindow::installWsl() {
+  runWslCommand(tr("Install WSL"), {QStringLiteral("--install")},
+               QByteArray(), [this](bool success) {
+                 if (!success) {
+                   return;
+                 }
+                 applyMirroredNetworking();
+               });
+}
+
+void MainWindow::installNodeViaNvm() {
+  runWslScript(tr("Install Node.js (nvm)"),
+              QStringLiteral(":/scripts/install-node.sh"), {});
+}
+
+void MainWindow::installOpenCodeCli() {
+  runWslScript(tr("Install opencode CLI"),
+              QStringLiteral(":/scripts/install-opencode.sh"), {});
+}
+
+void MainWindow::installCodexCli() {
+  runWslScript(tr("Install Codex CLI"),
+              QStringLiteral(":/scripts/install-codex.sh"), {});
+}
+
+void MainWindow::installClaudeCodeCli() {
+  runWslScript(tr("Install Claude Code CLI"),
+              QStringLiteral(":/scripts/install-claude.sh"), {});
 }
 #endif
 

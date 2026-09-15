@@ -32,6 +32,30 @@ bool isNetworkingModeLine(const QString &line) {
 
 }  // namespace
 
+bool WslConfig::isMirroredNetworkingEnabled() {
+  QFile file(wslConfigPath());
+  if (!file.open(QIODevice::ReadOnly)) {
+    return false;
+  }
+  const QByteArray raw = file.readAll();
+  file.close();
+
+  bool inWsl2Section = false;
+  QString mode;
+  for (const QByteArray &rawLine : raw.split('\n')) {
+    const QString line = QString::fromUtf8(rawLine).trimmed();
+    QString sectionName;
+    if (isSectionHeader(line, &sectionName)) {
+      inWsl2Section = sectionName.compare("wsl2", Qt::CaseInsensitive) == 0;
+      continue;
+    }
+    if (inWsl2Section && isNetworkingModeLine(line)) {
+      mode = line.section('=', 1).trimmed();
+    }
+  }
+  return mode.compare("mirrored", Qt::CaseInsensitive) == 0;
+}
+
 bool WslConfig::enableMirroredNetworking(QString *error) {
   const QString path = wslConfigPath();
 

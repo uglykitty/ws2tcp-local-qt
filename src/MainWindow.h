@@ -9,11 +9,18 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QPlainTextEdit>
+#include <QStringList>
 #include <QSystemTrayIcon>
 #include <QTimer>
 #include <QToolButton>
 
+#include <functional>
+
 #include "ws2tcp_local_ffi.h"
+
+#ifdef Q_OS_WIN
+class QProcess;
+#endif
 
 class MainWindow final : public QMainWindow {
   Q_OBJECT
@@ -41,6 +48,11 @@ class MainWindow final : public QMainWindow {
 #endif
 #ifdef Q_OS_WIN
   void enableWslMirroredNetworking();
+  void installWsl();
+  void installNodeViaNvm();
+  void installOpenCodeCli();
+  void installCodexCli();
+  void installClaudeCodeCli();
 #endif
 
  protected:
@@ -63,6 +75,14 @@ class MainWindow final : public QMainWindow {
   void showRestartNotice(const QString &message, const QString &settingsKey,
                          bool *suppressed);
   void showEnvProxyRestartNotice();
+  void maybePromptWslMirroredNetworking();
+  void applyMirroredNetworking();
+  void runWslCommand(const QString &label, const QStringList &arguments,
+                     const QByteArray &stdinData = {},
+                     std::function<void(bool)> onFinished = {});
+  void runWslScript(const QString &label, const QString &resourcePath,
+                    const QStringList &scriptArgs,
+                    std::function<void(bool)> onFinished = {});
 #endif
 
   Ws2TcpHandle *handle_ = nullptr;
@@ -91,6 +111,9 @@ class MainWindow final : public QMainWindow {
 #ifdef Q_OS_WIN
   bool suppressEnvProxyNotice_ = false;
   bool suppressWslRestartNotice_ = false;
+  bool suppressWslMirroredPrompt_ = false;
+  QMenu *wslMenu_ = nullptr;
+  QProcess *wslProcess_ = nullptr;
 #endif
   QAction *quitAction_ = nullptr;
   bool wasRunning_ = false;

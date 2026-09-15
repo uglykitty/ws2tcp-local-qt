@@ -2,4 +2,10 @@
   <qresource prefix="/icons">
     <file alias="app-icon.png">resources/app-icon.png</file>
   </qresource>
+  <qresource prefix="/scripts">
+    <file alias="install-node.sh">resources/wsl/install-node.sh</file>
+    <file alias="install-opencode.sh">resources/wsl/install-opencode.sh</file>
+    <file alias="install-codex.sh">resources/wsl/install-codex.sh</file>
+    <file alias="install-claude.sh">resources/wsl/install-claude.sh</file>
+  </qresource>
 </RCC>

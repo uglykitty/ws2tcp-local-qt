@@ -11,6 +11,11 @@ class WslConfig final {
   // is preserved verbatim.
   static bool enableMirroredNetworking(QString *error);
 
+  // True only if .wslconfig exists and its [wsl2] section sets
+  // networkingMode=mirrored. Anything else (missing file, missing section
+  // or key, or a different value) is reported as false.
+  static bool isMirroredNetworkingEnabled();
+
  private:
   WslConfig() = delete;
 };

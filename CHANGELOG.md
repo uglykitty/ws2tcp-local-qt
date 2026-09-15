@@ -5,6 +5,24 @@ All notable changes to this project are documented here, generated with
 commit messages. Commits made before this file existed are grouped
 best-effort under "Other".
 <!-- git-cliff: end of header -->
+## [0.1.15] - 2026-09-15
+
+### 📚 Documentation
+
+- Add CHANGELOG.md and document the Conventional Commits convention
+
+### ⚙️ Miscellaneous Tasks
+
+- Generate release notes with git-cliff instead of --generate-notes
+
+### 💼 Other
+
+- Set HTTP_PROXY/HTTPS_PROXY/ALL_PROXY when enabling the Windows system proxy
+- Show build time in the About dialog
+- Add zh_CN translation and a Language menu
+- Default the close-window prompt to Exit
+- Add a Tools menu action to set WSL networking to mirrored mode
+
 ## [unreleased]
 
 ### 💼 Other

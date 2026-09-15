@@ -77,6 +77,8 @@ class MainWindow final : public QMainWindow {
   void showEnvProxyRestartNotice();
   void maybePromptWslMirroredNetworking();
   void applyMirroredNetworking();
+  bool isWslUsable();
+  void showWslNotReadyMessage();
   void runWslCommand(const QString &label, const QStringList &arguments,
                      const QByteArray &stdinData = {},
                      std::function<void(bool)> onFinished = {});

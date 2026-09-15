@@ -25,7 +25,6 @@
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QScrollBar>
-#include <QStandardPaths>
 #include <QStyle>
 #include <QStatusBar>
 #include <QToolBar>
@@ -972,7 +971,34 @@ void MainWindow::showEnvProxyRestartNotice() {
 }
 
 void MainWindow::enableWslMirroredNetworking() {
+  if (!isWslUsable()) {
+    showWslNotReadyMessage();
+    return;
+  }
   applyMirroredNetworking();
+}
+
+bool MainWindow::isWslUsable() {
+  // wsl.exe's own text output is unreliable to parse (UTF-16LE with no
+  // console attached, and inconsistent across Windows versions/states --
+  // see the WSL menu's commit history), but --status is a fast, cheap
+  // query (unlike actually trying to launch a distro) whose exit code is
+  // a trustworthy signal on its own: 0 once WSL is installed and has a
+  // usable default distro, non-zero otherwise.
+  QProcess process;
+  process.start(QStringLiteral("wsl.exe"), {QStringLiteral("--status")});
+  if (!process.waitForFinished(5000)) {
+    process.kill();
+    process.waitForFinished();
+    return false;
+  }
+  return process.exitStatus() == QProcess::NormalExit &&
+         process.exitCode() == 0;
+}
+
+void MainWindow::showWslNotReadyMessage() {
+  showError(tr("WSL is not installed or not ready. Use \"Install WSL\" in "
+               "the WSL menu first."));
 }
 
 void MainWindow::applyMirroredNetworking() {
@@ -993,7 +1019,7 @@ void MainWindow::maybePromptWslMirroredNetworking() {
   if (suppressWslMirroredPrompt_) {
     return;
   }
-  if (QStandardPaths::findExecutable("wsl.exe").isEmpty()) {
+  if (!isWslUsable()) {
     return;
   }
   if (WslConfig::isMirroredNetworkingEnabled()) {
@@ -1190,21 +1216,37 @@ void MainWindow::installWsl() {
 }
 
 void MainWindow::installNodeViaNvm() {
+  if (!isWslUsable()) {
+    showWslNotReadyMessage();
+    return;
+  }
   runWslScript(tr("Install Node.js (nvm)"),
               QStringLiteral(":/scripts/install-node.sh"), {});
 }
 
 void MainWindow::installOpenCodeCli() {
+  if (!isWslUsable()) {
+    showWslNotReadyMessage();
+    return;
+  }
   runWslScript(tr("Install opencode CLI"),
               QStringLiteral(":/scripts/install-opencode.sh"), {});
 }
 
 void MainWindow::installCodexCli() {
+  if (!isWslUsable()) {
+    showWslNotReadyMessage();
+    return;
+  }
   runWslScript(tr("Install Codex CLI"),
               QStringLiteral(":/scripts/install-codex.sh"), {});
 }
 
 void MainWindow::installClaudeCodeCli() {
+  if (!isWslUsable()) {
+    showWslNotReadyMessage();
+    return;
+  }
   runWslScript(tr("Install Claude Code CLI"),
               QStringLiteral(":/scripts/install-claude.sh"), {});
 }

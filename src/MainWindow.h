@@ -30,7 +30,7 @@ class MainWindow final : public QMainWindow {
   ~MainWindow() override;
   bool clearUserSettingsAndQuit();
   void showAndActivate();
-  void quitGracefully();
+  void quitGracefully(bool confirmIfWslBusy = true);
 
  private slots:
   void startProxy();
@@ -68,6 +68,7 @@ class MainWindow final : public QMainWindow {
   void saveUserSettings() const;
   void appendError(const QString &prefix);
   void showError(const QString &message);
+  void showInfo(const QString &message);
   void logMessage(const QString &message);
   void updateRuntimeStatus(const QString &message);
   void updateRuntimeStatusFromLog(const QString &message);
@@ -80,6 +81,7 @@ class MainWindow final : public QMainWindow {
   void applyMirroredNetworking();
   bool isWslUsable();
   void showWslNotReadyMessage();
+  bool confirmQuitDuringWslOperation();
   void runWslCommand(const QString &label, const QStringList &arguments,
                      const QByteArray &stdinData = {},
                      std::function<void(bool)> onFinished = {});

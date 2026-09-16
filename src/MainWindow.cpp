@@ -138,7 +138,14 @@ QByteArray readBundledScript(const QString &resourcePath) {
   if (!file.open(QIODevice::ReadOnly)) {
     return QByteArray();
   }
-  return file.readAll();
+  // On a Windows checkout these .sh resources can end up with CRLF line
+  // endings (core.autocrlf). That stray '\r' rides along into WSL's bash,
+  // e.g. turning "set -eo pipefail" into "set -eo pipefail\r" -- bash then
+  // rejects "pipefail\r" as an invalid option name. Normalize to LF since
+  // this only ever runs as a Unix shell script.
+  QByteArray script = file.readAll();
+  script.replace("\r\n", "\n");
+  return script;
 }
 
 // wsl.exe's own launcher messages (install progress, "not installed" /
@@ -585,6 +592,22 @@ void MainWindow::showSettingsDialog() {
     closeBehaviorCombo->setCurrentIndex(currentIndex);
   }
   form->addRow(tr("When closing window"), closeBehaviorCombo);
+
+#ifdef Q_OS_WIN
+  auto *envProxyNoticeCheck = new QCheckBox(&dialog);
+  envProxyNoticeCheck->setChecked(!suppressEnvProxyNotice_);
+  form->addRow(tr("Show system proxy restart reminder"), envProxyNoticeCheck);
+
+  auto *wslRestartNoticeCheck = new QCheckBox(&dialog);
+  wslRestartNoticeCheck->setChecked(!suppressWslRestartNotice_);
+  form->addRow(tr("Show WSL restart reminder"), wslRestartNoticeCheck);
+
+  auto *wslMirroredPromptCheck = new QCheckBox(&dialog);
+  wslMirroredPromptCheck->setChecked(!suppressWslMirroredPrompt_);
+  form->addRow(tr("Prompt to enable WSL mirrored networking on startup"),
+              wslMirroredPromptCheck);
+#endif
+
   layout->addLayout(form);
 
   auto *buttons = new QDialogButtonBox(
@@ -599,6 +622,11 @@ void MainWindow::showSettingsDialog() {
     insecure_ = insecureCheck->isChecked();
     closeBehavior_ = closeBehaviorCombo->currentData().toString();
     sessionCloseBehavior_.clear();
+#ifdef Q_OS_WIN
+    suppressEnvProxyNotice_ = !envProxyNoticeCheck->isChecked();
+    suppressWslRestartNotice_ = !wslRestartNoticeCheck->isChecked();
+    suppressWslMirroredPrompt_ = !wslMirroredPromptCheck->isChecked();
+#endif
     saveUserSettings();
   }
 }
@@ -718,7 +746,12 @@ void MainWindow::quitFromTray() {
   quitGracefully();
 }
 
-void MainWindow::quitGracefully() {
+void MainWindow::quitGracefully(bool confirmIfWslBusy) {
+#ifdef Q_OS_WIN
+  if (confirmIfWslBusy && !confirmQuitDuringWslOperation()) {
+    return;
+  }
+#endif
   allowClose_ = true;
   QApplication::quit();
 }
@@ -810,6 +843,17 @@ void MainWindow::closeEvent(QCloseEvent *event) {
   }
 
   if (behavior == "exit" || trayIcon_ == nullptr || !trayIcon_->isVisible()) {
+#ifdef Q_OS_WIN
+    if (!confirmQuitDuringWslOperation()) {
+      // Declining leaves the window open with nothing actually decided --
+      // don't let this count as the session's remembered "exit" choice, or
+      // the next close attempt would skip straight back to this WSL prompt
+      // instead of asking again.
+      sessionCloseBehavior_.clear();
+      event->ignore();
+      return;
+    }
+#endif
     allowClose_ = true;
     event->accept();
     QApplication::quit();
@@ -1008,6 +1052,13 @@ void MainWindow::saveUserSettings() const {
   settings.setValue("proxy/set_system_proxy",
                     systemProxyCheck_->isChecked());
 #endif
+#ifdef Q_OS_WIN
+  settings.setValue("ui/suppress_env_proxy_notice", suppressEnvProxyNotice_);
+  settings.setValue("ui/suppress_wsl_restart_notice",
+                    suppressWslRestartNotice_);
+  settings.setValue("ui/suppress_wsl_mirrored_prompt",
+                    suppressWslMirroredPrompt_);
+#endif
 }
 
 void MainWindow::appendError(const QString &prefix) {
@@ -1020,6 +1071,10 @@ void MainWindow::appendError(const QString &prefix) {
 void MainWindow::showError(const QString &message) {
   updateRuntimeStatus(message);
   QMessageBox::warning(this, tr("ws2tcp-local"), message);
+}
+
+void MainWindow::showInfo(const QString &message) {
+  QMessageBox::information(this, tr("ws2tcp-local"), message);
 }
 
 void MainWindow::updateRuntimeStatus(const QString &message) {
@@ -1088,6 +1143,28 @@ bool MainWindow::isWslUsable() {
          process.exitCode() == 0;
 }
 
+bool MainWindow::confirmQuitDuringWslOperation() {
+  // The WSL menu action is disabled for the duration of every WSL
+  // operation (see runWslCommand/installWsl), so that's a reliable single
+  // signal for "something is still running" without tracking it twice.
+  if (wslMenu_ == nullptr || wslMenu_->menuAction()->isEnabled()) {
+    return true;
+  }
+
+  QMessageBox messageBox(this);
+  messageBox.setIcon(QMessageBox::Warning);
+  messageBox.setWindowTitle(tr("ws2tcp-local"));
+  messageBox.setText(
+      tr("A WSL operation is still running. Quitting now will interrupt "
+         "it and may leave it partially installed.\n\n"
+         "Quit anyway?"));
+  auto *yesButton = messageBox.addButton(QMessageBox::Yes);
+  auto *noButton = messageBox.addButton(QMessageBox::No);
+  messageBox.setDefaultButton(noButton);
+  messageBox.exec();
+  return messageBox.clickedButton() == yesButton;
+}
+
 void MainWindow::showWslNotReadyMessage() {
   showError(tr("WSL is not installed or not ready. Use \"Install WSL\" in "
                "the WSL menu first."));
@@ -1152,7 +1229,10 @@ void MainWindow::runWslCommand(const QString &label,
                                const QByteArray &stdinData,
                                std::function<void(bool)> onFinished) {
   if (wslProcess_ != nullptr) {
-    logMessage(tr("%1: another WSL command is already running.").arg(label));
+    const QString message =
+        tr("%1: another WSL command is already running.").arg(label);
+    logMessage(message);
+    showError(message);
     return;
   }
 
@@ -1182,9 +1262,12 @@ void MainWindow::runWslCommand(const QString &label,
                 status == QProcess::NormalExit && exitCode == 0;
             if (success) {
               logMessage(tr("%1: done.").arg(label));
+              showInfo(tr("%1: done.").arg(label));
             } else {
-              logMessage(
-                  tr("%1: failed (exit code %2).").arg(label).arg(exitCode));
+              const QString message =
+                  tr("%1: failed (exit code %2).").arg(label).arg(exitCode);
+              logMessage(message);
+              showError(message);
             }
             wslMenu_->menuAction()->setEnabled(true);
             wslProcess_ = nullptr;
@@ -1199,8 +1282,11 @@ void MainWindow::runWslCommand(const QString &label,
               // 'finished' above reports a crash or non-zero exit.
               return;
             }
-            logMessage(tr("%1: failed to start (%2).")
-                          .arg(label, process->errorString()));
+            const QString message =
+                tr("%1: failed to start (%2).")
+                    .arg(label, process->errorString());
+            logMessage(message);
+            showError(message);
             wslMenu_->menuAction()->setEnabled(true);
             wslProcess_ = nullptr;
             process->deleteLater();
@@ -1222,8 +1308,10 @@ void MainWindow::runWslScript(const QString &label,
                               std::function<void(bool)> onFinished) {
   const QByteArray script = readBundledScript(resourcePath);
   if (script.isEmpty()) {
-    logMessage(tr("%1: bundled script %2 is missing or empty.")
-                  .arg(label, resourcePath));
+    const QString message = tr("%1: bundled script %2 is missing or empty.")
+                                 .arg(label, resourcePath);
+    logMessage(message);
+    showError(message);
     return;
   }
 
@@ -1254,12 +1342,17 @@ void MainWindow::installWsl() {
   // the way runWslCommand does -- so it gets its own visible console
   // instead, and we just poll for its exit code.
   if (wslProcess_ != nullptr) {
-    logMessage(tr("Install WSL: another WSL command is already running."));
+    const QString message =
+        tr("Install WSL: another WSL command is already running.");
+    logMessage(message);
+    showError(message);
     return;
   }
 
   if (isWslUsable()) {
-    logMessage(tr("Install WSL: already installed and ready."));
+    const QString message = tr("Install WSL: already installed and ready.");
+    logMessage(message);
+    showInfo(message);
     return;
   }
 
@@ -1277,13 +1370,16 @@ void MainWindow::installWsl() {
   if (!ShellExecuteExW(&info)) {
     const DWORD error = GetLastError();
     wslMenu_->menuAction()->setEnabled(true);
+    QString message;
     if (error == ERROR_CANCELLED) {
-      logMessage(tr("Install WSL: cancelled (UAC prompt was declined)."));
+      message = tr("Install WSL: cancelled (UAC prompt was declined).");
     } else {
-      logMessage(tr("Install WSL: failed to start elevated (Windows error "
-                    "%1).")
-                    .arg(error));
+      message = tr("Install WSL: failed to start elevated (Windows error "
+                   "%1).")
+                    .arg(error);
     }
+    logMessage(message);
+    showError(message);
     return;
   }
 
@@ -1302,11 +1398,15 @@ void MainWindow::installWsl() {
     wslMenu_->menuAction()->setEnabled(true);
     if (exitCode == 0) {
       logMessage(tr("Install WSL: done."));
+      showInfo(tr("Install WSL: done."));
       applyMirroredNetworking();
     } else {
-      logMessage(tr("Install WSL: failed (exit code %1). Check the console "
-                    "window it opened for details.")
-                    .arg(exitCode));
+      const QString message =
+          tr("Install WSL: failed (exit code %1). Check the console "
+             "window it opened for details.")
+              .arg(exitCode);
+      logMessage(message);
+      showError(message);
     }
   });
   watcher->start();

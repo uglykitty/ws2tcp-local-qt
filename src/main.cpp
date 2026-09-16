@@ -180,7 +180,12 @@ int main(int argc, char *argv[]) {
           socket->write("ok");
           socket->flush();
           socket->waitForBytesWritten(1000);
-          window.quitGracefully();
+          // This comes from --quit-running-instance (the uninstaller,
+          // including the silent run before an upgrade reinstall) with no
+          // one present to answer a confirmation dialog -- quit
+          // unconditionally rather than risk hanging the installer behind
+          // an unattended prompt.
+          window.quitGracefully(/*confirmIfWslBusy=*/false);
         } else {
           window.showAndActivate();
         }

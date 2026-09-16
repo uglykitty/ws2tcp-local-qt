@@ -5,6 +5,12 @@ All notable changes to this project are documented here, generated with
 commit messages. Commits made before this file existed are grouped
 best-effort under "Other".
 <!-- git-cliff: end of header -->
+## [0.3.0] - 2026-09-16
+
+### 🚀 Features
+
+- *(update)* Download update installer in-app instead of opening browser
+
 ## [0.2.0] - 2026-09-16
 
 ### 🚀 Features

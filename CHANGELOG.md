@@ -5,6 +5,12 @@ All notable changes to this project are documented here, generated with
 commit messages. Commits made before this file existed are grouped
 best-effort under "Other".
 <!-- git-cliff: end of header -->
+## [0.1.21] - 2026-09-16
+
+### 🚀 Features
+
+- *(update)* Add in-app update check and self-hosted release mirror
+
 ## [0.1.20] - 2026-09-15
 
 ### 🚀 Features

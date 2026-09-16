@@ -5,6 +5,12 @@ All notable changes to this project are documented here, generated with
 commit messages. Commits made before this file existed are grouped
 best-effort under "Other".
 <!-- git-cliff: end of header -->
+## [0.1.23] - 2026-09-16
+
+### 🐛 Bug Fixes
+
+- *(wsl)* Skip elevation when Install WSL finds WSL already ready
+
 ## [0.1.22] - 2026-09-16
 
 ### 🚀 Features

@@ -38,6 +38,7 @@
 #ifdef Q_OS_WIN
 #include <QProcess>
 
+#define NOMINMAX
 #include <windows.h>
 #include <shellapi.h>
 #endif

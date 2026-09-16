@@ -255,6 +255,8 @@ set(WS2TCP_LOCAL_QT_SOURCES
     src/MainWindow.cpp
     src/MainWindow.h
     src/SystemProxy.h
+    src/UpdateDownloadDialog.cpp
+    src/UpdateDownloadDialog.h
     src/resources.qrc)
 
 if(WIN32)

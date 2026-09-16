@@ -1,5 +1,7 @@
 #include "MainWindow.h"
 
+#include "UpdateDownloadDialog.h"
+
 #include <QByteArray>
 #include <QActionGroup>
 #include <QApplication>
@@ -719,7 +721,11 @@ void MainWindow::checkForUpdates() {
     box.exec();
 
     if (downloadButton && box.clickedButton() == downloadButton) {
-      QDesktopServices::openUrl(QUrl(downloadUrl));
+      UpdateDownloadDialog downloadDialog(downloadUrl, remoteVersion, this);
+      downloadDialog.exec();
+      if (downloadDialog.installerLaunched()) {
+        quitGracefully(false);
+      }
     } else if (notesButton && box.clickedButton() == notesButton) {
       QDesktopServices::openUrl(QUrl(notesUrl));
     }

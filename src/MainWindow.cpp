@@ -1258,6 +1258,11 @@ void MainWindow::installWsl() {
     return;
   }
 
+  if (isWslUsable()) {
+    logMessage(tr("Install WSL: already installed and ready."));
+    return;
+  }
+
   logMessage(tr("Install WSL: requesting administrator privileges..."));
   wslMenu_->menuAction()->setEnabled(false);
 

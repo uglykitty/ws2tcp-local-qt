@@ -40,6 +40,7 @@ class MainWindow final : public QMainWindow {
   void appendLog(QString message);
   void showSettingsDialog();
   void showAboutDialog();
+  void checkForUpdates();
   void toggleWindowVisibility();
   void quitFromTray();
   void handleTrayActivation(QSystemTrayIcon::ActivationReason reason);

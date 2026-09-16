@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFile>
@@ -18,6 +19,9 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMetaObject>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPushButton>
@@ -28,6 +32,7 @@
 #include <QStyle>
 #include <QStatusBar>
 #include <QToolBar>
+#include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
 #ifdef Q_OS_WIN
@@ -49,6 +54,24 @@
 namespace {
 
 constexpr auto kDefaultListenAddress = "127.0.0.1:3128";
+constexpr auto kUpdateManifestUrl =
+    "https://wangguofang.net/ws2tcp-local/releases/latest.json";
+
+bool isVersionNewer(const QString &remote, const QString &local) {
+  const QStringList remoteParts = remote.split(QLatin1Char('.'));
+  const QStringList localParts = local.split(QLatin1Char('.'));
+  const int partCount = std::max(remoteParts.size(), localParts.size());
+  for (int i = 0; i < partCount; ++i) {
+    const int remoteValue =
+        i < remoteParts.size() ? remoteParts.at(i).toInt() : 0;
+    const int localValue =
+        i < localParts.size() ? localParts.at(i).toInt() : 0;
+    if (remoteValue != localValue) {
+      return remoteValue > localValue;
+    }
+  }
+  return false;
+}
 
 QIcon applicationIcon() {
   QIcon icon(":/icons/app-icon.png");
@@ -302,6 +325,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 #endif
 
   auto *helpMenu = menuBar()->addMenu(tr("&Help"));
+  auto *checkForUpdatesAction = helpMenu->addAction(tr("Check for &Updates..."));
+  connect(checkForUpdatesAction, &QAction::triggered, this,
+          &MainWindow::checkForUpdates);
   auto *aboutAction = helpMenu->addAction(tr("&About ws2tcp-local"));
   connect(aboutAction, &QAction::triggered, this,
           &MainWindow::showAboutDialog);
@@ -604,6 +630,71 @@ void MainWindow::showAboutDialog() {
          "lazysoez@gmail.com</a></p>")
           .arg(QCoreApplication::applicationVersion().toHtmlEscaped(),
                QStringLiteral(__DATE__ " " __TIME__).toHtmlEscaped()));
+}
+
+void MainWindow::checkForUpdates() {
+  auto *manager = new QNetworkAccessManager(this);
+  QNetworkReply *reply = manager->get(QNetworkRequest(QUrl(kUpdateManifestUrl)));
+  connect(reply, &QNetworkReply::finished, this, [this, reply, manager]() {
+    reply->deleteLater();
+    manager->deleteLater();
+
+    if (reply->error() != QNetworkReply::NoError) {
+      QMessageBox::warning(
+          this, tr("Check for Updates"),
+          tr("Failed to check for updates: %1").arg(reply->errorString()));
+      return;
+    }
+
+    const QJsonObject manifest =
+        QJsonDocument::fromJson(reply->readAll()).object();
+    const QString remoteVersion =
+        manifest.value(QStringLiteral("version")).toString();
+    if (remoteVersion.isEmpty()) {
+      QMessageBox::warning(this, tr("Check for Updates"),
+                            tr("Update server returned an unexpected response."));
+      return;
+    }
+
+    const QString currentVersion = QCoreApplication::applicationVersion();
+    if (!isVersionNewer(remoteVersion, currentVersion)) {
+      QMessageBox::information(
+          this, tr("Check for Updates"),
+          tr("You are using the latest version (%1).").arg(currentVersion));
+      return;
+    }
+
+    QString downloadUrl;
+#if defined(Q_OS_WIN)
+    downloadUrl = manifest.value(QStringLiteral("windows_url")).toString();
+#elif defined(Q_OS_MACOS)
+    downloadUrl = manifest.value(QStringLiteral("macos_url")).toString();
+#endif
+    const QString notesUrl =
+        manifest.value(QStringLiteral("notes_url")).toString();
+
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Information);
+    box.setWindowTitle(tr("Update Available"));
+    box.setText(tr("A new version %1 is available (you have %2).")
+                    .arg(remoteVersion, currentVersion));
+    QPushButton *downloadButton =
+        downloadUrl.isEmpty()
+            ? nullptr
+            : box.addButton(tr("Download"), QMessageBox::AcceptRole);
+    QPushButton *notesButton =
+        notesUrl.isEmpty()
+            ? nullptr
+            : box.addButton(tr("Release Notes"), QMessageBox::HelpRole);
+    box.addButton(QMessageBox::Close);
+    box.exec();
+
+    if (downloadButton && box.clickedButton() == downloadButton) {
+      QDesktopServices::openUrl(QUrl(downloadUrl));
+    } else if (notesButton && box.clickedButton() == notesButton) {
+      QDesktopServices::openUrl(QUrl(notesUrl));
+    }
+  });
 }
 
 void MainWindow::toggleWindowVisibility() {

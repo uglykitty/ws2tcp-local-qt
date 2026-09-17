@@ -13,6 +13,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFont>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -26,6 +27,7 @@
 #include <QNetworkRequest>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPen>
 #include <QPushButton>
 #include <QSettings>
 #include <QSignalBlocker>
@@ -126,6 +128,185 @@ QIcon settingsIcon(const QPalette &palette) {
                    QIcon::Disabled);
   }
   return icon;
+}
+
+// The rest of the menu/toolbar icon set follows the same hand-drawn,
+// palette-tinted approach as gearPixmap/settingsIcon above so every icon
+// automatically matches the active theme (including dark mode) and renders
+// crisply at any DPI, instead of shipping raster assets.
+using IconPathBuilder = std::function<void(QPainterPath &, int)>;
+
+QPixmap fillPathPixmap(int size, const QColor &color,
+                       const IconPathBuilder &build) {
+  QPixmap pixmap(size, size);
+  pixmap.fill(Qt::transparent);
+  QPainterPath path;
+  build(path, size);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  painter.fillPath(path, color);
+  return pixmap;
+}
+
+QIcon fillPathIcon(const QPalette &palette, const IconPathBuilder &build) {
+  QIcon icon;
+  for (const int size : {16, 24, 32}) {
+    icon.addPixmap(fillPathPixmap(size, palette.color(QPalette::ButtonText),
+                                  build),
+                   QIcon::Normal);
+    icon.addPixmap(fillPathPixmap(size,
+                                  palette.color(QPalette::Disabled,
+                                                QPalette::ButtonText),
+                                  build),
+                   QIcon::Disabled);
+  }
+  return icon;
+}
+
+QPixmap strokePathPixmap(int size, const QColor &color,
+                         const IconPathBuilder &build) {
+  QPixmap pixmap(size, size);
+  pixmap.fill(Qt::transparent);
+  QPainterPath path;
+  build(path, size);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  QPen pen(color, std::max(1.0, size * 0.09));
+  pen.setCapStyle(Qt::RoundCap);
+  pen.setJoinStyle(Qt::RoundJoin);
+  painter.setPen(pen);
+  painter.setBrush(Qt::NoBrush);
+  painter.drawPath(path);
+  return pixmap;
+}
+
+QIcon strokePathIcon(const QPalette &palette, const IconPathBuilder &build) {
+  QIcon icon;
+  for (const int size : {16, 24, 32}) {
+    icon.addPixmap(strokePathPixmap(size, palette.color(QPalette::ButtonText),
+                                    build),
+                   QIcon::Normal);
+    icon.addPixmap(strokePathPixmap(size,
+                                    palette.color(QPalette::Disabled,
+                                                  QPalette::ButtonText),
+                                    build),
+                   QIcon::Disabled);
+  }
+  return icon;
+}
+
+QPixmap glyphPixmap(int size, const QColor &color, QChar glyph) {
+  QPixmap pixmap(size, size);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  const qreal margin = size * 0.12;
+  QPen pen(color, std::max(1.0, size * 0.08));
+  painter.setPen(pen);
+  painter.setBrush(Qt::NoBrush);
+  painter.drawEllipse(QRectF(margin, margin, size - 2 * margin,
+                             size - 2 * margin));
+  QFont font = painter.font();
+  font.setBold(true);
+  font.setPixelSize(static_cast<int>(size * 0.5));
+  painter.setFont(font);
+  painter.setPen(color);
+  painter.drawText(pixmap.rect(), Qt::AlignCenter, glyph);
+  return pixmap;
+}
+
+QIcon glyphIcon(const QPalette &palette, QChar glyph) {
+  QIcon icon;
+  for (const int size : {16, 24, 32}) {
+    icon.addPixmap(glyphPixmap(size, palette.color(QPalette::ButtonText),
+                               glyph),
+                   QIcon::Normal);
+    icon.addPixmap(glyphPixmap(size,
+                               palette.color(QPalette::Disabled,
+                                             QPalette::ButtonText),
+                               glyph),
+                   QIcon::Disabled);
+  }
+  return icon;
+}
+
+void playPath(QPainterPath &path, int size) {
+  path.moveTo(size * 0.32, size * 0.20);
+  path.lineTo(size * 0.32, size * 0.80);
+  path.lineTo(size * 0.80, size * 0.50);
+  path.closeSubpath();
+}
+
+void stopPath(QPainterPath &path, int size) {
+  const qreal margin = size * 0.26;
+  path.addRoundedRect(margin, margin, size - 2 * margin, size - 2 * margin,
+                      size * 0.08, size * 0.08);
+}
+
+void exitPath(QPainterPath &path, int size) {
+  const QRectF circle(size * 0.22, size * 0.24, size * 0.56, size * 0.56);
+  path.arcMoveTo(circle, 125);
+  path.arcTo(circle, 125, 290);
+  path.moveTo(size * 0.5, size * 0.12);
+  path.lineTo(size * 0.5, size * 0.42);
+}
+
+void terminalPath(QPainterPath &path, int size) {
+  const QRectF frame(size * 0.14, size * 0.22, size * 0.72, size * 0.56);
+  path.addRoundedRect(frame, size * 0.06, size * 0.06);
+  const qreal chevronX = frame.left() + size * 0.14;
+  path.moveTo(chevronX, frame.top() + size * 0.14);
+  path.lineTo(chevronX + size * 0.12, frame.center().y());
+  path.lineTo(chevronX, frame.bottom() - size * 0.14);
+  path.moveTo(chevronX + size * 0.16, frame.bottom() - size * 0.14);
+  path.lineTo(chevronX + size * 0.34, frame.bottom() - size * 0.14);
+}
+
+void downloadPath(QPainterPath &path, int size) {
+  const qreal cx = size * 0.5;
+  path.moveTo(cx, size * 0.14);
+  path.lineTo(cx, size * 0.54);
+  path.moveTo(cx - size * 0.16, size * 0.40);
+  path.lineTo(cx, size * 0.58);
+  path.lineTo(cx + size * 0.16, size * 0.40);
+  path.moveTo(size * 0.20, size * 0.70);
+  path.lineTo(size * 0.20, size * 0.84);
+  path.lineTo(size * 0.80, size * 0.84);
+  path.lineTo(size * 0.80, size * 0.70);
+}
+
+void wifiPath(QPainterPath &path, int size) {
+  const QPointF base(size * 0.5, size * 0.76);
+  path.addEllipse(base, size * 0.045, size * 0.045);
+  for (const double radius : {0.18, 0.32, 0.46}) {
+    const QRectF rect(base.x() - size * radius, base.y() - size * radius,
+                      size * radius * 2, size * radius * 2);
+    path.arcMoveTo(rect, 35);
+    path.arcTo(rect, 35, 110);
+  }
+}
+
+void refreshPath(QPainterPath &path, int size) {
+  const QRectF circle(size * 0.2, size * 0.2, size * 0.6, size * 0.6);
+  path.arcMoveTo(circle, 40);
+  path.arcTo(circle, 40, 260);
+
+  constexpr double pi = 3.14159265358979323846;
+  const double angle = 40.0 * pi / 180.0;
+  const QPointF center = circle.center();
+  const double radius = circle.width() / 2.0;
+  const QPointF tip(center.x() + radius * std::cos(angle),
+                    center.y() - radius * std::sin(angle));
+  const double tangent = angle + pi / 2.0;
+  const QPointF direction(std::cos(tangent), -std::sin(tangent));
+  const QPointF normal(-direction.y(), direction.x());
+  const double headLength = size * 0.16;
+  const double headWidth = size * 0.12;
+  const QPointF back = tip - direction * headLength;
+  path.moveTo(tip);
+  path.lineTo(back + normal * headWidth);
+  path.moveTo(tip);
+  path.lineTo(back - normal * headWidth);
 }
 
 #ifdef Q_OS_WIN
@@ -245,17 +426,18 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   setWindowIcon(applicationIcon());
   resize(720, 520);
 
-  startAction_ = new QAction(
-      style()->standardIcon(QStyle::SP_MediaPlay), tr("&Start"), this);
+  startAction_ = new QAction(fillPathIcon(palette(), playPath), tr("&Start"),
+                             this);
   startAction_->setToolTip(tr("Start the proxy"));
-  stopAction_ = new QAction(
-      style()->standardIcon(QStyle::SP_MediaStop), tr("S&top"), this);
+  stopAction_ = new QAction(fillPathIcon(palette(), stopPath), tr("S&top"),
+                            this);
   stopAction_->setToolTip(tr("Stop the proxy"));
   settingsAction_ = new QAction(settingsIcon(palette()), tr("&Settings"), this);
   settingsAction_->setToolTip(tr("Open settings"));
 
   auto *proxyToolBar = addToolBar(tr("Proxy"));
   proxyToolBar->setObjectName("proxyToolBar");
+  proxyToolBar->setIconSize(QSize(22, 22));
   proxyToolBar->addAction(startAction_);
   proxyToolBar->addAction(stopAction_);
   proxyToolBar->addSeparator();
@@ -266,6 +448,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   proxyMenu->addAction(stopAction_);
   proxyMenu->addSeparator();
   auto *exitAction = proxyMenu->addAction(tr("E&xit"));
+  exitAction->setIcon(strokePathIcon(palette(), exitPath));
   exitAction->setShortcut(QKeySequence::Quit);
   connect(exitAction, &QAction::triggered, this, &MainWindow::quitFromTray);
 
@@ -303,11 +486,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   wslMenu_ = menuBar()->addMenu(tr("&WSL"));
 
   auto *installWslAction = wslMenu_->addAction(tr("Install WSL"));
+  installWslAction->setIcon(strokePathIcon(palette(), downloadPath));
   connect(installWslAction, &QAction::triggered, this,
           &MainWindow::installWsl);
 
   auto *wslMirroredAction =
       wslMenu_->addAction(tr("Set WSL Networking to Mirrored"));
+  wslMirroredAction->setIcon(strokePathIcon(palette(), wifiPath));
   connect(wslMirroredAction, &QAction::triggered, this,
           &MainWindow::enableWslMirroredNetworking);
 
@@ -315,30 +500,36 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
   auto *installNodeAction =
       wslMenu_->addAction(tr("Install Node.js (via nvm) in WSL"));
+  installNodeAction->setIcon(strokePathIcon(palette(), terminalPath));
   connect(installNodeAction, &QAction::triggered, this,
           &MainWindow::installNodeViaNvm);
 
   auto *installOpenCodeAction =
       wslMenu_->addAction(tr("Install opencode CLI in WSL"));
+  installOpenCodeAction->setIcon(strokePathIcon(palette(), terminalPath));
   connect(installOpenCodeAction, &QAction::triggered, this,
           &MainWindow::installOpenCodeCli);
 
   auto *installCodexAction =
       wslMenu_->addAction(tr("Install Codex CLI in WSL"));
+  installCodexAction->setIcon(strokePathIcon(palette(), terminalPath));
   connect(installCodexAction, &QAction::triggered, this,
           &MainWindow::installCodexCli);
 
   auto *installClaudeAction =
       wslMenu_->addAction(tr("Install Claude Code CLI in WSL"));
+  installClaudeAction->setIcon(strokePathIcon(palette(), terminalPath));
   connect(installClaudeAction, &QAction::triggered, this,
           &MainWindow::installClaudeCodeCli);
 #endif
 
   auto *helpMenu = menuBar()->addMenu(tr("&Help"));
   auto *checkForUpdatesAction = helpMenu->addAction(tr("Check for &Updates..."));
+  checkForUpdatesAction->setIcon(strokePathIcon(palette(), refreshPath));
   connect(checkForUpdatesAction, &QAction::triggered, this,
           &MainWindow::checkForUpdates);
   auto *aboutAction = helpMenu->addAction(tr("&About ws2tcp-local"));
+  aboutAction->setIcon(glyphIcon(palette(), QChar('i')));
   connect(aboutAction, &QAction::triggered, this,
           &MainWindow::showAboutDialog);
 

@@ -5,6 +5,12 @@ All notable changes to this project are documented here, generated with
 commit messages. Commits made before this file existed are grouped
 best-effort under "Other".
 <!-- git-cliff: end of header -->
+## [0.3.1] - 2026-09-17
+
+### 🚀 Features
+
+- *(ui)* Redesign toolbar and menu icons
+
 ## [0.3.0] - 2026-09-16
 
 ### 🚀 Features

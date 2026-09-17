@@ -1,6 +1,7 @@
 #include "UpdateDownloadDialog.h"
 
 #include <QClipboard>
+#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
@@ -121,6 +122,9 @@ void UpdateDownloadDialog::startDownload() {
   QNetworkRequest request(url);
   request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                         QNetworkRequest::NoLessSafeRedirectPolicy);
+  request.setHeader(QNetworkRequest::UserAgentHeader,
+                     QStringLiteral("ws2tcp-local-qt/%1")
+                         .arg(QCoreApplication::applicationVersion()));
   reply_ = manager_->get(request);
   connect(reply_, &QNetworkReply::downloadProgress, this,
           [this](qint64 bytesReceived, qint64 bytesTotal) {

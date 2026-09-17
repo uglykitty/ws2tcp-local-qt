@@ -856,7 +856,11 @@ void MainWindow::showAboutDialog() {
 
 void MainWindow::checkForUpdates() {
   auto *manager = new QNetworkAccessManager(this);
-  QNetworkReply *reply = manager->get(QNetworkRequest(QUrl(kUpdateManifestUrl)));
+  QNetworkRequest request{QUrl(kUpdateManifestUrl)};
+  request.setHeader(QNetworkRequest::UserAgentHeader,
+                     QStringLiteral("ws2tcp-local-qt/%1")
+                         .arg(QCoreApplication::applicationVersion()));
+  QNetworkReply *reply = manager->get(request);
   connect(reply, &QNetworkReply::finished, this, [this, reply, manager]() {
     reply->deleteLater();
     manager->deleteLater();
@@ -1074,6 +1078,9 @@ QByteArray MainWindow::buildConfigJson() const {
   config["rule_refresh_interval_secs"] = refreshIntervalSeconds_;
   config["proxy_mode"] = proxyModeCombo_->currentText();
   config["insecure"] = insecure_;
+  config["client_label"] =
+      QStringLiteral("ws2tcp-local-qt/%1")
+          .arg(QCoreApplication::applicationVersion());
 
   const QString username = usernameEdit_->text().trimmed();
   if (!username.isEmpty()) {

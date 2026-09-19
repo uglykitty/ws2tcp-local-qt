@@ -5,6 +5,12 @@ All notable changes to this project are documented here, generated with
 commit messages. Commits made before this file existed are grouped
 best-effort under "Other".
 <!-- git-cliff: end of header -->
+## [0.3.3] - 2026-09-19
+
+### 🚀 Features
+
+- *(network)* Send `User-Agent` on the gateway websocket handshake
+
 ## [0.3.2] - 2026-09-17
 
 ### 🚀 Features

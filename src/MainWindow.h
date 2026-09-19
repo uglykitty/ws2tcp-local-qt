@@ -68,6 +68,7 @@ class MainWindow final : public QMainWindow {
   void saveUserSettings() const;
   void appendError(const QString &prefix);
   void showError(const QString &message);
+  void showGatewayCheckFailure(const QString &message);
   void showInfo(const QString &message);
   void logMessage(const QString &message);
   void updateRuntimeStatus(const QString &message);

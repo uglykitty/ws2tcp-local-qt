@@ -218,6 +218,20 @@
         <translation>代理因错误停止:%1</translation>
     </message>
     <message>
+        <location filename="../src/MainWindow.cpp" line="749"/>
+        <source>The gateway rejected the username or password. Check the credentials and start again.</source>
+        <translation>网关拒绝了用户名或密码,请检查凭据后重新启动。</translation>
+    </message>
+    <message>
+        <location filename="../src/MainWindow.cpp" line="752"/>
+        <source>The gateway is not available.
+
+%1</source>
+        <translation>网关不可用。
+
+%1</translation>
+    </message>
+    <message>
         <location filename="../src/MainWindow.cpp" line="437"/>
         <location filename="../src/MainWindow.cpp" line="934"/>
         <source>Stopped with error</source>

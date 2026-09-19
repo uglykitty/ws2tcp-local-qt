@@ -652,6 +652,10 @@ void MainWindow::startProxy() {
   const QByteArray config = buildConfigJson();
   const int rc = ws2tcp_start(handle_, config.constData());
   if (rc == WS2TCP_OK) {
+    // The proxy starts asynchronously and may already have stopped again (for
+    // example when the gateway check fails) before the first status refresh;
+    // treat it as running so that refreshStatus() reports the failure.
+    wasRunning_ = true;
     saveUserSettings();
     updateConfigurationInputs(true);
     updateRuntimeStatus(tr("Starting %1").arg(listenEdit_->text().trimmed()));
@@ -716,12 +720,16 @@ void MainWindow::refreshStatus() {
 
   const bool running =
       ws2tcp_status(handle_) == WS2TCP_STATUS_RUNNING;
+  // Update before anything below can open a modal dialog: the status timer
+  // keeps firing while it is shown and must not report the same stop again.
+  const bool wasRunning = wasRunning_;
+  wasRunning_ = running;
   startAction_->setEnabled(!running);
   stopAction_->setEnabled(running);
   updateConfigurationInputs(running);
   updateTrayActions();
 
-  if (wasRunning_ && !running) {
+  if (wasRunning && !running) {
 #ifdef WS2TCP_SYSTEM_PROXY_AVAILABLE
     setSystemProxyEnabled(false);
 #endif
@@ -731,11 +739,28 @@ void MainWindow::refreshStatus() {
     if (!error.isEmpty()) {
       logMessage(tr("Proxy stopped with error: %1").arg(error));
       updateRuntimeStatus(tr("Stopped with error"));
+
+      // The gateway is checked when the proxy starts. Tell the user what to
+      // fix instead of leaving the failure in the log only.
+      const Ws2TcpErrorKind kind = ws2tcp_last_error_kind(handle_);
+      if (kind == WS2TCP_ERROR_KIND_AUTH_FAILED) {
+        usernameEdit_->setFocus();
+        showGatewayCheckFailure(
+            tr("The gateway rejected the username or password. Check the "
+               "credentials and start again."));
+      } else if (kind == WS2TCP_ERROR_KIND_GATEWAY_CHECK_FAILED) {
+        showGatewayCheckFailure(
+            tr("The gateway is not available.\n\n%1").arg(error));
+      }
     } else {
       updateRuntimeStatus(tr("Stopped"));
     }
   }
-  wasRunning_ = running;
+}
+
+void MainWindow::showGatewayCheckFailure(const QString &message) {
+  showAndActivate();
+  QMessageBox::warning(this, tr("ws2tcp-local"), message);
 }
 
 void MainWindow::appendLog(QString message) {
